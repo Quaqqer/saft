@@ -81,6 +81,7 @@ impl<'a> Lexer<'a> {
                         range,
                     ))
                 }
+                c if c.is_whitespace() => self.get_token(),
                 _ => Err(Error::UnexpectedChar(c, c_offset..c_offset + 1)),
             })
     }
