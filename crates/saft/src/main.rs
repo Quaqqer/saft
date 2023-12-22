@@ -1,4 +1,7 @@
-use std::{fs, path::PathBuf};
+use std::{
+    fs::{self, create_dir_all, File},
+    path::PathBuf,
+};
 
 use clap::Parser;
 use platform_dirs::AppDirs;
@@ -38,6 +41,10 @@ fn repl() {
     let appdirs = AppDirs::new(Some("saft"), false).unwrap();
 
     let history_file = appdirs.state_dir.join("history.txt");
+    if !history_file.exists() {
+        create_dir_all(history_file.parent().unwrap()).expect("Could not create saft directory");
+        File::create(&history_file).expect("Could not create history file");
+    }
 
     let _ = rl.load_history(&history_file);
 
