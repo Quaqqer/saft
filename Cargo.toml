@@ -1,0 +1,8 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/saft",
+    "crates/saft-common",
+    "crates/saft-lexer",
+]
+default-members = ["crates/saft"]
