@@ -1,7 +1,4 @@
-use std::{
-    ops::Range,
-    str::{CharIndices, Chars},
-};
+use std::{ops::Range, str::CharIndices};
 
 use saft_common::span::Spanned;
 
@@ -10,6 +7,12 @@ use crate::token::Token;
 pub struct Lexer<'a> {
     src: &'a str,
     iter: CharIndices<'a>,
+}
+
+#[derive(Debug)]
+pub enum Error {
+    Eof,
+    UnexpectedChar(char, Range<usize>),
 }
 
 impl<'a> Lexer<'a> {
@@ -62,28 +65,23 @@ impl<'a> Lexer<'a> {
         start..end
     }
 
-    pub fn get_token(&mut self) -> Option<Spanned<Token<'a>>> {
-        self.iter.next().and_then(|(c_offset, c)| match c {
-            'a' if let Some(span) = self.eat_str("asd") => {
-                todo!()
-            }
-            c if c.is_ascii_alphabetic() || c == '_' => {
-                let rest = self.eat_while(|c| c.is_alphanumeric() || c == '_');
-                let range = c_offset..rest.end;
-                Some(Spanned::new(
-                    Token::Identifier(&self.src[range.clone()]),
-                    range,
-                ))
-            }
-            _ => todo!(),
-        })
-    }
-}
-
-impl<'a> Iterator for Lexer<'a> {
-    type Item = Spanned<Token<'a>>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.get_token()
+    pub fn get_token(&mut self) -> Result<Spanned<Token<'a>>, Error> {
+        self.iter
+            .next()
+            .ok_or(Error::Eof)
+            .and_then(|(c_offset, c)| match c {
+                'a' if let Some(span) = self.eat_str("asd") => {
+                    todo!()
+                }
+                c if c.is_ascii_alphabetic() || c == '_' => {
+                    let rest = self.eat_while(|c| c.is_alphanumeric() || c == '_');
+                    let range = c_offset..rest.end;
+                    Ok(Spanned::new(
+                        Token::Identifier(&self.src[range.clone()]),
+                        range,
+                    ))
+                }
+                _ => Err(Error::UnexpectedChar(c, c_offset..c_offset + 1)),
+            })
     }
 }

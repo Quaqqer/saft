@@ -3,7 +3,7 @@ use std::{fs, path::PathBuf};
 use clap::Parser;
 use platform_dirs::AppDirs;
 use rustyline::{error::ReadlineError, DefaultEditor};
-use saft_lexer::lex::Lexer;
+use saft_lexer::lex::{self, Lexer};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -63,6 +63,19 @@ fn repl() {
 }
 
 fn interpret(s: &str) {
-    let spanned_tokens: Vec<_> = Lexer::new(s).collect();
+    let mut spanned_tokens = Vec::new();
+    let mut lexer = Lexer::new(s);
+    loop {
+        match lexer.get_token() {
+            Ok(st) => {
+                spanned_tokens.push(st);
+            }
+            Err(lex::Error::Eof) => break,
+            Err(e) => {
+                println!("Failed to lex {:?}", e);
+                return;
+            }
+        }
+    }
     println!("{:?}", spanned_tokens);
 }
