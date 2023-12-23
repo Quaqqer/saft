@@ -4,6 +4,14 @@ use std::{
 };
 
 use clap::Parser;
+use codespan_reporting::{
+    diagnostic::{Diagnostic, Label},
+    files::SimpleFiles,
+    term::{
+        self,
+        termcolor::{ColorChoice, StandardStream},
+    },
+};
 use platform_dirs::AppDirs;
 use rustyline::{error::ReadlineError, DefaultEditor};
 use saft_lexer::lex::{self, Lexer};
@@ -70,6 +78,9 @@ fn repl() {
 }
 
 fn interpret(s: &str) {
+    let mut files = SimpleFiles::new();
+    let id = files.add("input", s);
+
     let mut spanned_tokens = Vec::new();
     let mut lexer = Lexer::new(s);
     loop {
@@ -78,8 +89,16 @@ fn interpret(s: &str) {
                 spanned_tokens.push(st);
             }
             Err(lex::Error::Eof) => break,
-            Err(e) => {
-                println!("Failed to lex {:?}", e);
+            Err(lex::Error::UnexpectedChar(c, span)) => {
+                let diag = Diagnostic::error()
+                    .with_message(format!(
+                        "Reached unexpected character '{}' when scanning for tokens",
+                        c
+                    ))
+                    .with_labels(vec![Label::primary(id, span)]);
+                let writer = StandardStream::stdout(ColorChoice::Auto);
+                let config = codespan_reporting::term::Config::default();
+                term::emit(&mut writer.lock(), &config, &files, &diag).expect("Could not do stuff");
                 return;
             }
         }
