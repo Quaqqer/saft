@@ -89,11 +89,11 @@ fn interpret(s: &str) {
                 spanned_tokens.push(st);
             }
             Err(lex::Error::Eof) => break,
-            Err(lex::Error::UnexpectedChar(c, span)) => {
+            Err(lex::Error::UnexpectedToken(t, span)) => {
                 let diag = Diagnostic::error()
                     .with_message(format!(
-                        "Reached unexpected character '{}' when scanning for tokens",
-                        c
+                        "Could not tokenize '{}' when scanning for tokens",
+                        t
                     ))
                     .with_labels(vec![Label::primary(id, span)]);
                 let writer = StandardStream::stdout(ColorChoice::Auto);

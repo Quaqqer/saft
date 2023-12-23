@@ -13,9 +13,9 @@ pub struct Lexer<'a> {
 }
 
 #[derive(Debug)]
-pub enum Error {
+pub enum Error<'a> {
     Eof,
-    UnexpectedChar(char, Range<usize>),
+    UnexpectedToken(&'a str, Range<usize>),
 }
 
 impl<'a> Lexer<'a> {
@@ -90,7 +90,11 @@ impl<'a> Lexer<'a> {
 
                 c if c.is_whitespace() => self.get_token(),
 
-                _ => Err(Error::UnexpectedChar(c, start..start + 1)),
+                _ => {
+                    let end = self.eat_while(|c| !(c.is_whitespace() || ";(){}[]".contains(c)));
+                    let range = start..end;
+                    Err(Error::UnexpectedToken(&self.src[range.clone()], range))
+                }
             })
     }
 }
