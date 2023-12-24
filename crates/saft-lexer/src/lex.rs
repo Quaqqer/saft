@@ -5,125 +5,259 @@ use saft_common::span::Spanned;
 use crate::token::Token;
 
 pub struct Lexer<'a> {
-    src: &'a str,
-    iter: CharIndices<'a>,
-
-    start: usize,
-    end: usize,
+    cursor: Cursor<'a>,
 }
 
-#[derive(Debug)]
-pub enum Error<'a> {
+#[derive(Debug, PartialEq)]
+pub enum Error {
     Eof,
-    UnexpectedToken(&'a str, Range<usize>),
 }
 
 macro_rules! mktoken {
-    ($lexer:expr, $tok:expr) => {
-        Ok(Spanned::new($tok, $lexer.start..$lexer.end))
+    ($cursor:expr, $tok:expr) => {
+        Ok(Spanned::new($tok, $cursor.span()))
     };
+}
+
+#[derive(Clone, Debug)]
+struct Cursor<'a> {
+    start: usize,
+    src: &'a str,
+    iter: CharIndices<'a>,
+}
+
+impl<'a> Cursor<'a> {
+    pub fn peek(&self) -> Option<char> {
+        self.iter.clone().peekable().peek().map(|(_, c)| c).cloned()
+    }
+
+    pub fn peek_n(&self, n: usize) -> Option<char> {
+        let mut iter = self.iter.clone();
+
+        for _ in 0..n - 1 {
+            if iter.next().is_none() {
+                return None;
+            }
+        }
+        iter.next().map(|(_, c)| c)
+    }
+
+    pub fn eat_char(&mut self, c: char) -> bool {
+        self.eat(|cc| cc == c)
+    }
+
+    pub fn eat<F>(&mut self, f: F) -> bool
+    where
+        F: Fn(char) -> bool,
+    {
+        let eat = self.peek().map_or(false, |c| f(c));
+        if eat {
+            // Eat the char
+            self.advance();
+        }
+        eat
+    }
+
+    pub fn eat_while<F>(&mut self, f: F)
+    where
+        F: Fn(char) -> bool,
+    {
+        loop {
+            if !self.eat(&f) {
+                break;
+            }
+        }
+    }
+
+    pub fn advance(&mut self) {
+        self.iter.next().expect("Not allowed to advance beyond end");
+    }
+
+    pub fn span(&self) -> Range<usize> {
+        self.start..self.iter.offset()
+    }
+
+    pub fn str(&self) -> &'a str {
+        &self.src[self.span()]
+    }
+
+    pub fn restart(&mut self) {
+        self.start = self.iter.offset();
+    }
 }
 
 impl<'a> Lexer<'a> {
     pub fn new(src: &'a str) -> Self {
         Self {
-            src,
-            iter: src.char_indices(),
-
-            start: 0,
-            end: 0,
+            cursor: Cursor {
+                src,
+                iter: src.char_indices(),
+                start: 0,
+            },
         }
     }
 
-    pub fn eat_str(&mut self, s: &'static str) -> bool {
-        let mut chars_iter = self.iter.clone();
-        let mut s_iter = s.chars();
+    fn eat_chars(cursor: &mut Cursor<'a>, s: &'static str) -> bool {
+        let mut cur = cursor.clone();
 
-        // Get next char from string
-        while let Some(s_char) = s_iter.next() {
-            if let Some((_, c_char)) = chars_iter.next()
-                && c_char == s_char
-            {
-                // This is fine
-            } else {
+        for c in s.chars() {
+            if !cur.eat_char(c) {
                 return false;
             }
         }
 
-        self.iter = chars_iter;
-        self.end = self.iter.offset();
+        *cursor = cur;
         true
     }
 
-    pub fn eat_while<F>(&mut self, f: &mut F) -> usize
-    where
-        F: FnMut(char) -> bool,
-    {
-        while let Some((_, c)) = self.iter.clone().peekable().peek()
-            && f(*c)
-        {
-            self.iter
-                .next()
-                .expect("This char should have been eaten already");
-        }
-
-        self.iter.offset()
-    }
-
-    pub fn get_token(&mut self) -> Result<Spanned<Token<'a>>, Error> {
+    pub fn next_token(&mut self) -> Result<Spanned<Token<'a>>, Error> {
         use Token as T;
 
-        self.iter
-            .next()
-            .ok_or(Error::Eof)
-            .and_then(|(start, c)| match c {
-                ':' if self.eat_str("=") => mktoken!(self, T::ColonEqual),
+        self.cursor.eat_while(|c| c.is_whitespace());
+        self.cursor.restart();
 
-                c if c.is_ascii_alphabetic() || c == '_' => {
-                    let end = self.eat_while(&mut |c| c.is_alphanumeric() || c == '_');
-                    let range = start..end;
-                    Ok(Spanned::new(
-                        Token::Identifier(&self.src[range.clone()]),
-                        range,
-                    ))
-                }
+        let mut cur = self.cursor.clone();
 
-                c if c.is_numeric() => self.numeric(start),
+        let res = cur.peek().ok_or(Error::Eof).and_then(|c| match c {
+            ':' if Self::eat_chars(&mut cur, ":=") => mktoken!(cur, T::ColonEqual),
 
-                c if c.is_whitespace() => self.get_token(),
+            c if c.is_ascii_alphabetic() || c == '_' => {
+                cur.advance();
+                cur.eat_while(|c| c.is_ascii_alphanumeric() || c == '_');
+                mktoken!(cur, T::Identifier(cur.str()))
+            }
 
-                _ => {
-                    let end =
-                        self.eat_while(&mut |c| !(c.is_whitespace() || ";(){}[]".contains(c)));
-                    let range = start..end;
-                    Err(Error::UnexpectedToken(&self.src[range.clone()], range))
-                }
-            })
-    }
+            c if c.is_numeric() => Self::eat_numeric(&mut cur),
+            '.' if let Some(c) = cur.peek_n(2)
+                && c.is_numeric() =>
+            {
+                Self::eat_numeric(&mut cur)
+            }
 
-    fn numeric(&mut self, start: usize) -> Result<Spanned<Token<'a>>, Error> {
-        let mut float = false;
-        let end = self.eat_while(&mut |c| {
-            if c.is_numeric() {
-                true
-            } else if c == '.' {
-                if float {
-                    false
-                } else {
-                    float = true;
-                    true
-                }
-            } else {
-                false
+            _ => {
+                cur.eat_while(|c| !Self::is_delimiter(c));
+                mktoken!(cur, T::Unknown)
             }
         });
 
-        let src = &self.src[start..end];
+        self.cursor = cur;
 
-        if float {
-            mktoken!(self, Token::Float(src.parse().unwrap()))
-        } else {
-            mktoken!(self, Token::Integer(src.parse().unwrap()))
+        res
+    }
+
+    fn is_delimiter(c: char) -> bool {
+        match c {
+            c if c.is_whitespace() => true,
+            ';' | '(' | ')' | '{' | '}' | '[' | ']' => true,
+            _ => false,
         }
+    }
+
+    fn eat_numeric(cur: &mut Cursor<'a>) -> Result<Spanned<Token<'a>>, Error> {
+        cur.eat_while(|c| c.is_numeric());
+
+        if cur.eat_char('.') {
+            cur.eat_while(|c| c.is_numeric());
+
+            mktoken!(
+                cur,
+                Token::Float(cur.str().parse().expect("Should have parsed a float"))
+            )
+        } else {
+            mktoken!(
+                cur,
+                Token::Integer(cur.str().parse().expect("Should have parsed an integer"))
+            )
+        }
+    }
+
+    pub fn all_tokens(&mut self) -> Result<Vec<Spanned<Token>>, Error> {
+        let mut vals = Vec::new();
+
+        loop {
+            match self.next_token() {
+                Ok(st) => vals.push(st),
+                Err(Error::Eof) => break,
+            }
+        }
+
+        Ok(vals)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use saft_common::span::Spanned;
+
+    use crate::{lex::Lexer, token::Token};
+
+    fn expect_spanned_tokens(src: &'static str, spanned_tokens: Vec<Spanned<Token<'static>>>) {
+        assert_eq!(
+            Lexer::new(src)
+                .all_tokens()
+                .expect("Got error when parsing tokens"),
+            spanned_tokens
+        );
+    }
+
+    fn expect_tokens(src: &'static str, tokens: Vec<Token<'static>>) {
+        assert_eq!(
+            Lexer::new(src)
+                .all_tokens()
+                .expect("Got error when parsing tokens")
+                .iter()
+                .map(|s| s.v.clone())
+                .collect::<Vec<_>>(),
+            tokens
+        );
+    }
+
+    #[test]
+    fn operators() {
+        expect_spanned_tokens(" := ", vec![Spanned::new(Token::ColonEqual, 1..3)]);
+    }
+
+    #[test]
+    fn integers() {
+        expect_spanned_tokens("123", vec![Spanned::new(Token::Integer(123), 0..3)]);
+        expect_spanned_tokens(
+            " 1 3",
+            vec![
+                Spanned::new(Token::Integer(1), 1..2),
+                Spanned::new(Token::Integer(3), 3..4),
+            ],
+        );
+    }
+
+    #[test]
+    fn floats() {
+        expect_spanned_tokens(
+            "1.23 123. .123",
+            vec![
+                Spanned::new(Token::Float(1.23), 0..4),
+                Spanned::new(Token::Float(123.0), 5..9),
+                Spanned::new(Token::Float(0.123), 10..14),
+            ],
+        );
+    }
+
+    #[test]
+    fn identifiers() {
+        expect_spanned_tokens(
+            "x f z _hej hej_ h_ej Hej hEj hej123 _123 _hej123",
+            vec![
+                Spanned::new(Token::Identifier("x"), 0..1),
+                Spanned::new(Token::Identifier("f"), 2..3),
+                Spanned::new(Token::Identifier("z"), 4..5),
+                Spanned::new(Token::Identifier("_hej"), 6..10),
+                Spanned::new(Token::Identifier("hej_"), 11..15),
+                Spanned::new(Token::Identifier("h_ej"), 16..20),
+                Spanned::new(Token::Identifier("Hej"), 21..24),
+                Spanned::new(Token::Identifier("hEj"), 25..28),
+                Spanned::new(Token::Identifier("hej123"), 29..35),
+                Spanned::new(Token::Identifier("_123"), 36..40),
+                Spanned::new(Token::Identifier("_hej123"), 41..48),
+            ],
+        )
     }
 }

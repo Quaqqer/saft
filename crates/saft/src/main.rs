@@ -4,14 +4,7 @@ use std::{
 };
 
 use clap::Parser;
-use codespan_reporting::{
-    diagnostic::{Diagnostic, Label},
-    files::SimpleFiles,
-    term::{
-        self,
-        termcolor::{ColorChoice, StandardStream},
-    },
-};
+use codespan_reporting::files::SimpleFiles;
 use platform_dirs::AppDirs;
 use rustyline::{error::ReadlineError, DefaultEditor};
 use saft_lexer::lex::{self, Lexer};
@@ -78,29 +71,29 @@ fn repl() {
 }
 
 fn interpret(s: &str) {
-    let mut files = SimpleFiles::new();
-    let id = files.add("input", s);
+    // let mut files = SimpleFiles::new();
+    // let id = files.add("input", s);
 
     let mut spanned_tokens = Vec::new();
     let mut lexer = Lexer::new(s);
     loop {
-        match lexer.get_token() {
+        match lexer.next_token() {
             Ok(st) => {
                 spanned_tokens.push(st);
             }
             Err(lex::Error::Eof) => break,
-            Err(lex::Error::UnexpectedToken(t, span)) => {
-                let diag = Diagnostic::error()
-                    .with_message(format!(
-                        "Could not tokenize '{}' when scanning for tokens",
-                        t
-                    ))
-                    .with_labels(vec![Label::primary(id, span)]);
-                let writer = StandardStream::stdout(ColorChoice::Auto);
-                let config = codespan_reporting::term::Config::default();
-                term::emit(&mut writer.lock(), &config, &files, &diag).expect("Could not do stuff");
-                return;
-            }
+            // Err(lex::Error::UnexpectedToken(t, span)) => {
+            //     let diag = Diagnostic::error()
+            //         .with_message(format!(
+            //             "Could not tokenize '{}' when scanning for tokens",
+            //             t
+            //         ))
+            //         .with_labels(vec![Label::primary(id, span)]);
+            //     let writer = StandardStream::stdout(ColorChoice::Auto);
+            //     let config = codespan_reporting::term::Config::default();
+            //     term::emit(&mut writer.lock(), &config, &files, &diag).expect("Could not do stuff");
+            //     return;
+            // }
         }
     }
     println!("{:?}", spanned_tokens);

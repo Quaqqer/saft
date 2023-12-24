@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Spanned<T> {
     pub s: Range<usize>,
     pub v: T,
