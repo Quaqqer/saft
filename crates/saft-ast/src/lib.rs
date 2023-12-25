@@ -17,4 +17,5 @@ pub enum Expr {
     Var(Ident),
     Integer(i64),
     Float(f64),
+    Nil,
 }

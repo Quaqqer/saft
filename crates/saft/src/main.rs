@@ -67,7 +67,7 @@ fn repl() {
         match readline {
             Ok(line) => {
                 rl.add_history_entry(&line).unwrap();
-                interpret(&mut env, &line);
+                interpret_stmt(&mut env, &line);
             }
             Err(ReadlineError::Interrupted | ReadlineError::Eof) => {
                 break;
@@ -84,19 +84,20 @@ fn repl() {
 }
 
 fn interpret_stmt(env: &mut Env, s: &str) {
+    let mut files = SimpleFiles::new();
+    let id = files.add("stdin", s);
+
+    let writer = StandardStream::stdout(ColorChoice::Auto);
+    let config = codespan_reporting::term::Config::default();
+
     match saft_parser::Parser::new(s).parse_statement() {
         Ok(spanned_stmt) => match spanned_stmt.v {
             saft_ast::Statement::Expr(se) => match se.v.eval(env) {
-                Ok(_) => todo!(),
-                Err(_) => todo!(),
+                Ok(vref) => println!("{:?}", vref),
+                Err(e) => {
+                    term::emit(&mut writer.lock(), &config, &files, &e.diagnostic(id)).unwrap()
+                }
             },
-
-            s => {
-                match s.eval(env) {
-                    Ok(_) => todo!(),
-                    Err(_) => todo!(),
-                };
-            }
         },
         Err(err) => println!("Error: {:?}", err),
     };
@@ -112,76 +113,11 @@ fn interpret_module(env: &mut Env, fname: &str, s: &str) {
         Ok(module) => {
             match module.eval(env) {
                 Ok(_) => {}
-                Err(err) => match err {
-                    saft_eval::Error::Exotic {
-                        message,
-                        span,
-                        note,
-                    } => {
-                        let mut diag = Diagnostic::error().with_message(message);
-                        if let Some(s) = span {
-                            let mut label = Label::primary(id, s.r);
-                            if let Some(n) = note {
-                                label = label.with_message(n);
-                            }
-                            diag = diag.with_labels(vec![label]);
-
-                            term::emit(&mut writer.lock(), &config, &files, &diag)
-                                .expect("Could not write error");
-                        }
-                    }
-                },
+                Err(err) => {
+                    term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap()
+                }
             };
         }
-        Err(errs) => {
-            for err in errs {
-                match err {
-                    saft_parser::Error::UnexpectedToken { got, expected } => {
-                        let diag =
-                            Diagnostic::error()
-                                .with_message("Got an unexpected token")
-                                .with_labels(vec![Label::primary(id, got.s.r).with_message(
-                                    format!("Got {} but expected {}", got.v.describe(), expected),
-                                )]);
-
-                        term::emit(&mut writer.lock(), &config, &files, &diag)
-                            .expect("Could not write error");
-                    }
-                }
-            }
-        }
-    }
-}
-
-fn interpret(env: &mut Env, s: &str) {
-    let mut files = SimpleFiles::new();
-    let id = files.add("input", s);
-
-    let mut parser = saft_parser::Parser::new(s);
-
-    match parser.parse_file() {
-        Ok(module) => {
-            println!("{:?}", module);
-            println!("{:?}", module.eval(env))
-        }
-        Err(errors) => {
-            let writer = StandardStream::stdout(ColorChoice::Auto);
-            let config = codespan_reporting::term::Config::default();
-
-            for err in errors {
-                match err {
-                    saft_parser::Error::UnexpectedToken { got, expected } => {
-                        let diag =
-                            Diagnostic::error()
-                                .with_message("Got an unexpected token")
-                                .with_labels(vec![Label::primary(id, got.s.r).with_message(
-                                    format!("Got {} but expected {}", got.v.describe(), expected),
-                                )]);
-                        term::emit(&mut writer.lock(), &config, &files, &diag)
-                            .expect("Could not write error");
-                    }
-                }
-            }
-        }
+        Err(err) => term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap(),
     }
 }

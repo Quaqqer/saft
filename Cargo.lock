@@ -390,6 +390,7 @@ version = "0.1.0"
 name = "saft-eval"
 version = "0.1.0"
 dependencies = [
+ "codespan-reporting",
  "saft-ast",
  "saft-common",
 ]
@@ -398,6 +399,7 @@ dependencies = [
 name = "saft-lexer"
 version = "0.1.0"
 dependencies = [
+ "codespan-reporting",
  "saft-common",
 ]
 
@@ -405,6 +407,7 @@ dependencies = [
 name = "saft-parser"
 version = "0.1.0"
 dependencies = [
+ "codespan-reporting",
  "saft-ast",
  "saft-common",
  "saft-lexer",

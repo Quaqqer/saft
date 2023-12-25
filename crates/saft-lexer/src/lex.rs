@@ -6,7 +6,7 @@ use crate::token::Token;
 
 pub struct Lexer<'a> {
     cursor: Cursor<'a>,
-    lookahead: VecDeque<Spanned<Token<'a>>>,
+    lookahead: VecDeque<Spanned<Token>>,
 }
 
 macro_rules! mktoken {
@@ -107,13 +107,13 @@ impl<'a> Lexer<'a> {
         true
     }
 
-    pub fn next_token(&mut self) -> Spanned<Token<'a>> {
+    pub fn next_token(&mut self) -> Spanned<Token> {
         self.lookahead
             .pop_front()
             .unwrap_or_else(|| self.advance_token())
     }
 
-    fn advance_token(&mut self) -> Spanned<Token<'a>> {
+    fn advance_token(&mut self) -> Spanned<Token> {
         use Token as T;
 
         self.cursor.eat_while(|c| c.is_whitespace());
@@ -129,7 +129,11 @@ impl<'a> Lexer<'a> {
                 c if c.is_ascii_alphabetic() || c == '_' => {
                     cur.advance();
                     cur.eat_while(|c| c.is_ascii_alphanumeric() || c == '_');
-                    mktoken!(cur, T::Identifier(cur.str()))
+
+                    match cur.str() {
+                        "nil" => mktoken!(cur, T::Nil),
+                        s => mktoken!(cur, T::Identifier(s.into())),
+                    }
                 }
 
                 c if c.is_numeric() => Self::eat_numeric(&mut cur),
@@ -151,11 +155,11 @@ impl<'a> Lexer<'a> {
         res
     }
 
-    pub fn peek(&mut self) -> Spanned<Token<'a>> {
+    pub fn peek(&mut self) -> Spanned<Token> {
         self.peek_n(1)
     }
 
-    pub fn peek_n(&mut self, n: usize) -> Spanned<Token<'a>> {
+    pub fn peek_n(&mut self, n: usize) -> Spanned<Token> {
         while self.lookahead.len() < n {
             let next_token = self.advance_token();
             self.lookahead.push_back(next_token);
@@ -172,7 +176,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn eat_numeric(cur: &mut Cursor<'a>) -> Spanned<Token<'a>> {
+    fn eat_numeric(cur: &mut Cursor<'a>) -> Spanned<Token> {
         cur.eat_while(|c| c.is_numeric());
 
         if cur.eat_char('.') {
@@ -254,17 +258,17 @@ mod test {
         expect_spanned_tokens(
             "x f z _hej hej_ h_ej Hej hEj hej123 _123 _hej123",
             vec![
-                spanned(Token::Identifier("x"), 0..1),
-                spanned(Token::Identifier("f"), 2..3),
-                spanned(Token::Identifier("z"), 4..5),
-                spanned(Token::Identifier("_hej"), 6..10),
-                spanned(Token::Identifier("hej_"), 11..15),
-                spanned(Token::Identifier("h_ej"), 16..20),
-                spanned(Token::Identifier("Hej"), 21..24),
-                spanned(Token::Identifier("hEj"), 25..28),
-                spanned(Token::Identifier("hej123"), 29..35),
-                spanned(Token::Identifier("_123"), 36..40),
-                spanned(Token::Identifier("_hej123"), 41..48),
+                spanned(Token::Identifier("x".into()), 0..1),
+                spanned(Token::Identifier("f".into()), 2..3),
+                spanned(Token::Identifier("z".into()), 4..5),
+                spanned(Token::Identifier("_hej".into()), 6..10),
+                spanned(Token::Identifier("hej_".into()), 11..15),
+                spanned(Token::Identifier("h_ej".into()), 16..20),
+                spanned(Token::Identifier("Hej".into()), 21..24),
+                spanned(Token::Identifier("hEj".into()), 25..28),
+                spanned(Token::Identifier("hej123".into()), 29..35),
+                spanned(Token::Identifier("_123".into()), 36..40),
+                spanned(Token::Identifier("_hej123".into()), 41..48),
             ],
         )
     }
@@ -273,7 +277,10 @@ mod test {
     fn lookahead() {
         let mut lexer = Lexer::new("hej 123 456.789");
         assert_eq!(lexer.peek_n(3), spanned(Token::Float(456.789), 8..15));
-        assert_eq!(lexer.next_token(), spanned(Token::Identifier("hej"), 0..3));
+        assert_eq!(
+            lexer.next_token(),
+            spanned(Token::Identifier("hej".into()), 0..3)
+        );
         assert_eq!(lexer.peek_n(2), spanned(Token::Float(456.789), 8..15));
         assert_eq!(lexer.lookahead.len(), 2);
     }
@@ -282,5 +289,10 @@ mod test {
     fn whitespace_eof() {
         let mut lexer = Lexer::new("   \t\n ");
         assert_eq!(lexer.next_token(), spanned(Token::Eof, 6..6));
+    }
+
+    #[test]
+    fn keywords() {
+        expect_spanned_tokens("nil", vec![spanned(Token::Nil, 0..3)]);
     }
 }

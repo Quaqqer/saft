@@ -1,14 +1,27 @@
 use ast::{Expr, Module, Statement};
+use codespan_reporting::diagnostic::{Diagnostic, Label};
 use saft_ast as ast;
 use saft_common::span::Spanned;
 use saft_lexer::{lex::Lexer, token::Token};
 
 #[derive(Clone, Debug)]
-pub enum Error<'a> {
+pub enum Error {
     UnexpectedToken {
-        got: Spanned<Token<'a>>,
+        got: Spanned<Token>,
         expected: &'static str,
     },
+}
+
+impl Error {
+    pub fn diagnostic<FileId>(&self, file_id: FileId) -> Diagnostic<FileId> {
+        match self {
+            Error::UnexpectedToken { got, expected } => Diagnostic::error()
+                .with_message("Got an unexpected token")
+                .with_labels(vec![Label::primary(file_id, got.s.r.clone()).with_message(
+                    format!("Got {} but expected {}", got.v.describe(), expected),
+                )]),
+        }
+    }
 }
 
 pub struct Parser<'a> {
@@ -19,7 +32,7 @@ pub trait Describeable<'a> {
     fn describe(&self) -> &'a str;
 }
 
-impl<'a> Describeable<'a> for Token<'a> {
+impl<'a> Describeable<'a> for Token {
     fn describe(&self) -> &'a str {
         match self {
             Token::Unknown => "unknown token",
@@ -28,6 +41,7 @@ impl<'a> Describeable<'a> for Token<'a> {
             Token::Float(_) => "float",
             Token::Integer(_) => "integer",
             Token::ColonEqual => "':='",
+            Token::Nil => "'nil'",
         }
     }
 }
@@ -41,7 +55,8 @@ impl<'a> Parser<'a> {
     pub fn parse_file(&'a mut self) -> Result<ast::Module, Error> {
         let mut stmts = Vec::<Spanned<ast::Statement>>::new();
 
-        while self.lexer.peek().v != Token::Eof {
+        let peeked_token = self.lexer.peek().v;
+        while peeked_token != Token::Eof {
             stmts.push(self.parse_statement()?);
         }
 
@@ -57,7 +72,9 @@ impl<'a> Parser<'a> {
                 Ok(Spanned::new(Statement::Expr(expr), s))
             }
 
-            Token::ColonEqual | Token::Unknown | Token::Eof => self.unexpected(st, "statement"),
+            Token::ColonEqual | Token::Unknown | Token::Eof | Token::Nil => {
+                self.unexpected(st, "statement")
+            }
         }
     }
 
@@ -80,11 +97,15 @@ impl<'a> Parser<'a> {
                 self.lexer.next_token();
                 Ok(Spanned::new(Expr::Integer(i), st.s))
             }
+            Token::Nil => {
+                self.lexer.next_token();
+                Ok(Spanned::new(Expr::Nil, st.s))
+            }
             Token::Unknown | Token::Eof | Token::ColonEqual => self.unexpected(st, "expression"),
         }
     }
 
-    fn unexpected<T>(&mut self, got: Spanned<Token<'a>>, expected: &'static str) -> Result<T, ()> {
+    fn unexpected<T>(&mut self, got: Spanned<Token>, expected: &'static str) -> Result<T, Error> {
         Err(Error::UnexpectedToken { got, expected })
     }
 }

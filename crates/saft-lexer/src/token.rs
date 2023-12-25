@@ -1,11 +1,12 @@
 #[derive(Debug, PartialEq, Clone)]
-pub enum Token<'a> {
+pub enum Token {
     Unknown,
     Eof,
 
-    Identifier(&'a str),
+    Identifier(String),
     Float(f64),
     Integer(i64),
+    Nil,
 
     ColonEqual,
 }
