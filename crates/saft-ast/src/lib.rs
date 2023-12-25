@@ -1,15 +1,20 @@
-pub type Ident<'a> = &'a str;
+use saft_common::span::Spanned;
 
-pub struct Module<'a> {
-    pub stmts: Vec<Statement<'a>>,
+pub type Ident = String;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Module {
+    pub stmts: Vec<Spanned<Statement>>,
 }
 
-pub enum Statement<'a> {
-    Assign { lhs: Expr<'a>, rhs: Expr<'a> },
+#[derive(Debug, Clone, PartialEq)]
+pub enum Statement {
+    Expr(Spanned<Expr>),
 }
 
-pub enum Expr<'a> {
-    Var(Ident<'a>),
+#[derive(Debug, Clone, PartialEq)]
+pub enum Expr {
+    Var(Ident),
     Integer(i64),
     Float(f64),
 }

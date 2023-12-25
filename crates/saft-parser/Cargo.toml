@@ -7,4 +7,5 @@ edition = "2021"
 
 [dependencies]
 saft-ast = { version = "0.1.0", path = "../saft-ast" }
+saft-common = { version = "0.1.0", path = "../saft-common" }
 saft-lexer = { version = "0.1.0", path = "../saft-lexer" }

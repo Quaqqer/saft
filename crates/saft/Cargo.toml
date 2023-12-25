@@ -8,5 +8,7 @@ clap = { version = "4.4.11", features = ["derive"] }
 codespan-reporting = "0.11.1"
 platform-dirs = "0.3.0"
 rustyline = "13.0.0"
+saft-ast = { version = "0.1.0", path = "../saft-ast" }
 saft-common = { version = "0.1.0", path = "../saft-common" }
 saft-lexer = { version = "0.1.0", path = "../saft-lexer" }
+saft-parser = { version = "0.1.0", path = "../saft-parser" }

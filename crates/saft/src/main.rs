@@ -16,6 +16,7 @@ use codespan_reporting::{
 use platform_dirs::AppDirs;
 use rustyline::{error::ReadlineError, DefaultEditor};
 use saft_lexer::{lex::Lexer, token::Token};
+use saft_parser::Describeable;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -82,26 +83,30 @@ fn interpret(s: &str) {
     let mut files = SimpleFiles::new();
     let id = files.add("input", s);
 
-    let mut spanned_tokens = Vec::new();
-    let mut lexer = Lexer::new(s);
-    loop {
-        let next_token = lexer.next_token();
-        match &next_token.v {
-            Token::Eof => break,
-            Token::Unknown => {
-                let diag = Diagnostic::error()
-                    .with_message(format!(
-                        "Failed to tokenize '{}' when scanning for tokens",
-                        &s[next_token.s.r.clone()]
-                    ))
-                    .with_labels(vec![Label::primary(id, next_token.s.r.clone())]);
-                let writer = StandardStream::stdout(ColorChoice::Auto);
-                let config = codespan_reporting::term::Config::default();
-                term::emit(&mut writer.lock(), &config, &files, &diag).expect("Could not do stuff");
-                return;
+    let mut parser = saft_parser::Parser::new(s);
+
+    match parser.parse_file() {
+        Ok(module) => {
+            println!("{:?}", module);
+        }
+        Err(errors) => {
+            let writer = StandardStream::stdout(ColorChoice::Auto);
+            let config = codespan_reporting::term::Config::default();
+
+            for err in errors {
+                match err {
+                    saft_parser::Error::UnexpectedToken { got, expected } => {
+                        let diag =
+                            Diagnostic::error()
+                                .with_message("Got an unexpected token")
+                                .with_labels(vec![Label::primary(id, got.s.r).with_message(
+                                    format!("Got {} but expected {}", got.v.describe(), expected),
+                                )]);
+                        term::emit(&mut writer.lock(), &config, &files, &diag)
+                            .expect("Could not write error");
+                    }
+                }
             }
-            _ => spanned_tokens.push(next_token),
         }
     }
-    println!("{:?}", spanned_tokens);
 }
