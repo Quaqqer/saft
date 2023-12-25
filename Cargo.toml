@@ -3,7 +3,7 @@ resolver = "2"
 members = [
     "crates/saft",
     "crates/saft-ast",
-    "crates/saft-common",
+    "crates/saft-common", "crates/saft-eval",
     "crates/saft-lexer",
     "crates/saft-parser",
 ]

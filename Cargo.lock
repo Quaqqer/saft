@@ -370,6 +370,7 @@ dependencies = [
  "rustyline",
  "saft-ast",
  "saft-common",
+ "saft-eval",
  "saft-lexer",
  "saft-parser",
 ]
@@ -384,6 +385,14 @@ dependencies = [
 [[package]]
 name = "saft-common"
 version = "0.1.0"
+
+[[package]]
+name = "saft-eval"
+version = "0.1.0"
+dependencies = [
+ "saft-ast",
+ "saft-common",
+]
 
 [[package]]
 name = "saft-lexer"

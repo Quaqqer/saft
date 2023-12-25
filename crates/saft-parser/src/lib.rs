@@ -3,7 +3,7 @@ use saft_ast as ast;
 use saft_common::span::Spanned;
 use saft_lexer::{lex::Lexer, token::Token};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Error<'a> {
     UnexpectedToken {
         got: Spanned<Token<'a>>,
@@ -13,7 +13,6 @@ pub enum Error<'a> {
 
 pub struct Parser<'a> {
     lexer: Lexer<'a>,
-    errors: Vec<Error<'a>>,
 }
 
 pub trait Describeable<'a> {
@@ -37,27 +36,19 @@ impl<'a> Parser<'a> {
     pub fn new(s: &'a str) -> Self {
         Self {
             lexer: Lexer::new(s),
-            errors: Vec::new(),
         }
     }
-    pub fn parse_file(&'a mut self) -> Result<ast::Module, Vec<Error>> {
+    pub fn parse_file(&'a mut self) -> Result<ast::Module, Error> {
         let mut stmts = Vec::<Spanned<ast::Statement>>::new();
 
         while self.lexer.peek().v != Token::Eof {
-            match self.parse_statement() {
-                Ok(s) => stmts.push(s),
-                Err(()) => return Err(self.errors.clone()),
-            }
+            stmts.push(self.parse_statement()?);
         }
 
-        if self.errors.len() > 0 {
-            Err(self.errors.clone())
-        } else {
-            Ok(Module { stmts })
-        }
+        Ok(Module { stmts })
     }
 
-    pub fn parse_statement(&mut self) -> Result<Spanned<ast::Statement>, ()> {
+    pub fn parse_statement(&mut self) -> Result<Spanned<ast::Statement>, Error> {
         let st = self.lexer.peek();
         match st.v {
             Token::Identifier(_) | Token::Float(_) | Token::Integer(_) => {
@@ -74,7 +65,7 @@ impl<'a> Parser<'a> {
         todo!()
     }
 
-    pub fn parse_expr(&mut self) -> Result<Spanned<ast::Expr>, ()> {
+    pub fn parse_expr(&mut self) -> Result<Spanned<ast::Expr>, Error> {
         let st = self.lexer.peek();
         match st.v {
             Token::Identifier(ident) => {
@@ -94,7 +85,6 @@ impl<'a> Parser<'a> {
     }
 
     fn unexpected<T>(&mut self, got: Spanned<Token<'a>>, expected: &'static str) -> Result<T, ()> {
-        self.errors.push(Error::UnexpectedToken { got, expected });
-        Err(())
+        Err(Error::UnexpectedToken { got, expected })
     }
 }
