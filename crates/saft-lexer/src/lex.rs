@@ -216,11 +216,11 @@ mod test {
 
     use crate::{lex::Lexer, token::Token};
 
-    fn expect_spanned_tokens(src: &'static str, spanned_tokens: Vec<Spanned<Token<'static>>>) {
+    fn expect_spanned_tokens(src: &'static str, spanned_tokens: Vec<Spanned<Token>>) {
         assert_eq!(Lexer::new(src).all_tokens(), spanned_tokens);
     }
 
-    fn spanned<'a>(t: Token<'a>, r: Range<usize>) -> Spanned<Token<'a>> {
+    fn spanned<'a>(t: Token, r: Range<usize>) -> Spanned<Token> {
         Spanned::new(t, span(r))
     }
 
