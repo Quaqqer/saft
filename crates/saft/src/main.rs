@@ -4,10 +4,18 @@ use std::{
 };
 
 use clap::Parser;
-use codespan_reporting::files::SimpleFiles;
+use codespan_reporting::{
+    diagnostic::{Diagnostic, Label},
+    files::SimpleFiles,
+    term::{
+        self,
+        termcolor::{ColorChoice, StandardStream},
+    },
+};
+// use codespan_reporting::files::SimpleFiles;
 use platform_dirs::AppDirs;
 use rustyline::{error::ReadlineError, DefaultEditor};
-use saft_lexer::lex::{self, Lexer};
+use saft_lexer::{lex::Lexer, token::Token};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -71,29 +79,28 @@ fn repl() {
 }
 
 fn interpret(s: &str) {
-    // let mut files = SimpleFiles::new();
-    // let id = files.add("input", s);
+    let mut files = SimpleFiles::new();
+    let id = files.add("input", s);
 
     let mut spanned_tokens = Vec::new();
     let mut lexer = Lexer::new(s);
     loop {
-        match lexer.next_token() {
-            Ok(st) => {
-                spanned_tokens.push(st);
+        let next_token = lexer.next_token();
+        match &next_token.v {
+            Token::Eof => break,
+            Token::Unknown => {
+                let diag = Diagnostic::error()
+                    .with_message(format!(
+                        "Failed to tokenize '{}' when scanning for tokens",
+                        &s[next_token.s.r.clone()]
+                    ))
+                    .with_labels(vec![Label::primary(id, next_token.s.r.clone())]);
+                let writer = StandardStream::stdout(ColorChoice::Auto);
+                let config = codespan_reporting::term::Config::default();
+                term::emit(&mut writer.lock(), &config, &files, &diag).expect("Could not do stuff");
+                return;
             }
-            Err(lex::Error::Eof) => break,
-            // Err(lex::Error::UnexpectedToken(t, span)) => {
-            //     let diag = Diagnostic::error()
-            //         .with_message(format!(
-            //             "Could not tokenize '{}' when scanning for tokens",
-            //             t
-            //         ))
-            //         .with_labels(vec![Label::primary(id, span)]);
-            //     let writer = StandardStream::stdout(ColorChoice::Auto);
-            //     let config = codespan_reporting::term::Config::default();
-            //     term::emit(&mut writer.lock(), &config, &files, &diag).expect("Could not do stuff");
-            //     return;
-            // }
+            _ => spanned_tokens.push(next_token),
         }
     }
     println!("{:?}", spanned_tokens);

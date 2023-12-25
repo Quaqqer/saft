@@ -2,7 +2,9 @@
 resolver = "2"
 members = [
     "crates/saft",
+    "crates/saft-ast",
     "crates/saft-common",
     "crates/saft-lexer",
+    "crates/saft-parser",
 ]
 default-members = ["crates/saft"]

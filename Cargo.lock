@@ -368,8 +368,13 @@ dependencies = [
  "codespan-reporting",
  "platform-dirs",
  "rustyline",
+ "saft-common",
  "saft-lexer",
 ]
+
+[[package]]
+name = "saft-ast"
+version = "0.1.0"
 
 [[package]]
 name = "saft-common"
@@ -380,6 +385,14 @@ name = "saft-lexer"
 version = "0.1.0"
 dependencies = [
  "saft-common",
+]
+
+[[package]]
+name = "saft-parser"
+version = "0.1.0"
+dependencies = [
+ "saft-ast",
+ "saft-lexer",
 ]
 
 [[package]]
