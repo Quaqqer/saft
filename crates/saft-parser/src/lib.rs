@@ -66,20 +66,14 @@ impl<'a> Parser<'a> {
     pub fn parse_statement(&mut self) -> Result<Spanned<ast::Statement>, Error> {
         let st = self.lexer.peek();
         match st.v {
-            Token::Identifier(_) | Token::Float(_) | Token::Integer(_) => {
+            Token::Identifier(_) | Token::Float(_) | Token::Integer(_) | Token::Nil => {
                 let expr = self.parse_expr()?;
                 let s = expr.s.clone();
                 Ok(Spanned::new(Statement::Expr(expr), s))
             }
 
-            Token::ColonEqual | Token::Unknown | Token::Eof | Token::Nil => {
-                self.unexpected(st, "statement")
-            }
+            Token::ColonEqual | Token::Unknown | Token::Eof => self.unexpected(st, "statement"),
         }
-    }
-
-    fn stmt_recover(&mut self) {
-        todo!()
     }
 
     pub fn parse_expr(&mut self) -> Result<Spanned<ast::Expr>, Error> {
