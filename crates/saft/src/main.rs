@@ -5,19 +5,15 @@ use std::{
 
 use clap::Parser;
 use codespan_reporting::{
-    diagnostic::{Diagnostic, Label},
     files::SimpleFiles,
     term::{
         self,
         termcolor::{ColorChoice, StandardStream},
     },
 };
-use saft_ast::Module;
-use saft_eval::{Env, Eval};
-// use codespan_reporting::files::SimpleFiles;
 use platform_dirs::AppDirs;
 use rustyline::{error::ReadlineError, DefaultEditor};
-use saft_parser::Describeable;
+use saft_eval::{Env, Eval};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -90,16 +86,23 @@ fn interpret_stmt(env: &mut Env, s: &str) {
     let writer = StandardStream::stdout(ColorChoice::Auto);
     let config = codespan_reporting::term::Config::default();
 
-    match saft_parser::Parser::new(s).parse_statement() {
+    match saft_parser::Parser::new(s).parse_single_statment() {
         Ok(spanned_stmt) => match spanned_stmt.v {
             saft_ast::Statement::Expr(se) => match se.v.eval(env) {
                 Ok(vref) => println!("{:?}", vref),
-                Err(e) => {
-                    term::emit(&mut writer.lock(), &config, &files, &e.diagnostic(id)).unwrap()
+                Err(err) => {
+                    term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap()
+                }
+            },
+
+            s => match s.eval(env) {
+                Ok(_) => {}
+                Err(err) => {
+                    term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap()
                 }
             },
         },
-        Err(err) => println!("Error: {:?}", err),
+        Err(err) => term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap(),
     };
 }
 

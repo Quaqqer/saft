@@ -63,9 +63,40 @@ impl<'a> Parser<'a> {
         Ok(Module { stmts })
     }
 
+    fn eat(&mut self, t: Token) -> Result<(), Error> {
+        let st = self.lexer.next_token();
+        match st.v {
+            v if v == t => Ok(()),
+            _ => Err(Error::UnexpectedToken {
+                got: st,
+                expected: t.describe(),
+            }),
+        }
+    }
+
+    pub fn parse_single_statment(&mut self) -> Result<Spanned<ast::Statement>, Error> {
+        let s = self.parse_statement()?;
+        self.eat(Token::Eof)?;
+        Ok(s)
+    }
+
     pub fn parse_statement(&mut self) -> Result<Spanned<ast::Statement>, Error> {
         let st = self.lexer.peek();
         match st.v {
+            Token::Identifier(ident) if self.lexer.peek_n(2).v == Token::ColonEqual => {
+                let ident_t = self.lexer.next_token();
+                let _colon_equals = self.lexer.next_token();
+                let expr = self.parse_expr()?;
+                let expr_s = expr.s.clone();
+
+                Ok(Spanned::new(
+                    Statement::Declare {
+                        ident: Spanned::new(ident, ident_t.s.clone()),
+                        expr,
+                    },
+                    ident_t.s.join(&expr_s),
+                ))
+            }
             Token::Identifier(_) | Token::Float(_) | Token::Integer(_) | Token::Nil => {
                 let expr = self.parse_expr()?;
                 let s = expr.s.clone();
@@ -81,7 +112,10 @@ impl<'a> Parser<'a> {
         match st.v {
             Token::Identifier(ident) => {
                 self.lexer.next_token();
-                Ok(Spanned::new(Expr::Var(ident.to_string()), st.s))
+                Ok(Spanned::new(
+                    Expr::Var(Spanned::new(ident.to_string(), st.s.clone())),
+                    st.s,
+                ))
             }
             Token::Float(f) => {
                 self.lexer.next_token();

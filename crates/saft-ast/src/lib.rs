@@ -10,11 +10,15 @@ pub struct Module {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
     Expr(Spanned<Expr>),
+    Declare {
+        ident: Spanned<Ident>,
+        expr: Spanned<Expr>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
-    Var(Ident),
+    Var(Spanned<Ident>),
     Integer(i64),
     Float(f64),
     Nil,
