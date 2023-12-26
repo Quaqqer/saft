@@ -43,6 +43,10 @@ impl<'a> Parser<'a> {
         parser.insert_infix("=", 14, |lhs, rhs| {
             Expr::Assign(Box::new(lhs), Box::new(rhs))
         });
+        parser.insert_infix("+", 4, |lhs, rhs| Expr::Add(Box::new(lhs), Box::new(rhs)));
+        parser.insert_infix("-", 4, |lhs, rhs| Expr::Sub(Box::new(lhs), Box::new(rhs)));
+        parser.insert_infix("*", 14, |lhs, rhs| Expr::Mul(Box::new(lhs), Box::new(rhs)));
+        parser.insert_infix("/", 14, |lhs, rhs| Expr::Div(Box::new(lhs), Box::new(rhs)));
 
         parser
     }

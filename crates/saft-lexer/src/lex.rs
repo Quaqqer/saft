@@ -125,6 +125,10 @@ impl<'a> Lexer<'a> {
             .peek()
             .map(|c| match c {
                 '=' if Self::eat_chars(&mut cur, "=") => mktoken!(cur, T::Operator("=".into())),
+                '+' if Self::eat_chars(&mut cur, "+") => mktoken!(cur, T::Operator("+".into())),
+                '-' if Self::eat_chars(&mut cur, "-") => mktoken!(cur, T::Operator("-".into())),
+                '*' if Self::eat_chars(&mut cur, "*") => mktoken!(cur, T::Operator("*".into())),
+                '/' if Self::eat_chars(&mut cur, "/") => mktoken!(cur, T::Operator("/".into())),
                 ':' if Self::eat_chars(&mut cur, ":=") => mktoken!(cur, T::ColonEqual),
 
                 c if c.is_ascii_alphabetic() || c == '_' => {
@@ -297,7 +301,7 @@ mod test {
         expect_spanned_tokens(
             "= :=",
             vec![
-                spanned(Token::Equal, 0..1),
+                spanned(Token::Operator("=".into()), 0..1),
                 spanned(Token::ColonEqual, 2..4),
             ],
         );

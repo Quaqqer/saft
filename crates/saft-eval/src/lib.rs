@@ -153,6 +153,58 @@ impl Eval for Expr {
                     })
                 }
             }
+            Expr::Add(lhs, rhs) => {
+                let lv = lhs.v.eval(env)?;
+                let rv = rhs.v.eval(env)?;
+
+                match (lv, rv) {
+                    (Val::Integer(a), Val::Integer(b)) => Ok(Val::Integer(a + b)),
+                    _ => Err(Error::Exotic {
+                        message: "Binary operation error".into(),
+                        span: Some(lhs.s.join(&rhs.s)),
+                        note: None,
+                    }),
+                }
+            }
+            Expr::Sub(lhs, rhs) => {
+                let lv = lhs.v.eval(env)?;
+                let rv = rhs.v.eval(env)?;
+
+                match (lv, rv) {
+                    (Val::Integer(a), Val::Integer(b)) => Ok(Val::Integer(a - b)),
+                    _ => Err(Error::Exotic {
+                        message: "Binary operation error".into(),
+                        span: Some(lhs.s.join(&rhs.s)),
+                        note: None,
+                    }),
+                }
+            }
+            Expr::Mul(lhs, rhs) => {
+                let lv = lhs.v.eval(env)?;
+                let rv = rhs.v.eval(env)?;
+
+                match (lv, rv) {
+                    (Val::Integer(a), Val::Integer(b)) => Ok(Val::Integer(a * b)),
+                    _ => Err(Error::Exotic {
+                        message: "Binary operation error".into(),
+                        span: Some(lhs.s.join(&rhs.s)),
+                        note: None,
+                    }),
+                }
+            }
+            Expr::Div(lhs, rhs) => {
+                let lv = lhs.v.eval(env)?;
+                let rv = rhs.v.eval(env)?;
+
+                match (lv, rv) {
+                    (Val::Integer(a), Val::Integer(b)) => Ok(Val::Integer(a / b)),
+                    _ => Err(Error::Exotic {
+                        message: "Binary operation error".into(),
+                        span: Some(lhs.s.join(&rhs.s)),
+                        note: None,
+                    }),
+                }
+            }
         }
     }
 }

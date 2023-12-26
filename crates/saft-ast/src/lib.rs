@@ -24,6 +24,10 @@ pub enum Expr {
     Nil,
 
     Assign(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
+    Add(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
+    Sub(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
+    Mul(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
+    Div(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
 }
 
 impl Expr {
@@ -34,6 +38,10 @@ impl Expr {
             Expr::Float(..) => "float",
             Expr::Nil => "nil",
             Expr::Assign(..) => "assignment",
+            Expr::Add(..) => "addition",
+            Expr::Sub(..) => "subtraction",
+            Expr::Mul(..) => "multiplication",
+            Expr::Div(..) => "division",
         }
     }
 }
