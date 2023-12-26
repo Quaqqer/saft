@@ -53,8 +53,7 @@ impl<'a> Parser<'a> {
     pub fn parse_file(&'a mut self) -> Result<ast::Module, Error> {
         let mut stmts = Vec::<Spanned<ast::Statement>>::new();
 
-        let peeked_token = self.lexer.peek().v;
-        while peeked_token != Token::Eof {
+        while self.lexer.peek().v != Token::Eof {
             stmts.push(self.parse_statement()?);
         }
 
