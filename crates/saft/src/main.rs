@@ -96,7 +96,7 @@ fn interpret_stmt(env: &mut Env, s: &str) {
             },
 
             s => match s.eval(env) {
-                Ok(_) => {}
+                Ok(..) => {}
                 Err(err) => {
                     term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap()
                 }
@@ -115,7 +115,7 @@ fn interpret_module(env: &mut Env, fname: &str, s: &str) {
     match saft_parser::Parser::new(s).parse_file() {
         Ok(module) => {
             match module.eval(env) {
-                Ok(_) => {}
+                Ok(..) => {}
                 Err(err) => {
                     term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap()
                 }

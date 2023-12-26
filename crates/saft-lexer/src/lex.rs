@@ -124,6 +124,7 @@ impl<'a> Lexer<'a> {
         let res = cur
             .peek()
             .map(|c| match c {
+                '=' if Self::eat_chars(&mut cur, "=") => mktoken!(cur, T::Operator("=".into())),
                 ':' if Self::eat_chars(&mut cur, ":=") => mktoken!(cur, T::ColonEqual),
 
                 c if c.is_ascii_alphabetic() || c == '_' => {
@@ -225,11 +226,6 @@ mod test {
     }
 
     #[test]
-    fn operators() {
-        expect_spanned_tokens(" := ", vec![spanned(Token::ColonEqual, 1..3)]);
-    }
-
-    #[test]
     fn integers() {
         expect_spanned_tokens("123", vec![spanned(Token::Integer(123), 0..3)]);
         expect_spanned_tokens(
@@ -294,5 +290,16 @@ mod test {
     #[test]
     fn keywords() {
         expect_spanned_tokens("nil", vec![spanned(Token::Nil, 0..3)]);
+    }
+
+    #[test]
+    fn operators() {
+        expect_spanned_tokens(
+            "= :=",
+            vec![
+                spanned(Token::Equal, 0..1),
+                spanned(Token::ColonEqual, 2..4),
+            ],
+        );
     }
 }

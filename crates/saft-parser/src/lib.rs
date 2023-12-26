@@ -1,3 +1,7 @@
+#![feature(let_chains)]
+
+use std::{collections::HashMap, rc::Rc};
+
 use ast::{Expr, Module, Statement};
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use saft_ast as ast;
@@ -8,7 +12,7 @@ use saft_lexer::{lex::Lexer, token::Token};
 pub enum Error {
     UnexpectedToken {
         got: Spanned<Token>,
-        expected: &'static str,
+        expected: String,
     },
 }
 
@@ -26,31 +30,21 @@ impl Error {
 
 pub struct Parser<'a> {
     lexer: Lexer<'a>,
-}
-
-pub trait Describeable<'a> {
-    fn describe(&self) -> &'a str;
-}
-
-impl<'a> Describeable<'a> for Token {
-    fn describe(&self) -> &'a str {
-        match self {
-            Token::Unknown => "unknown token",
-            Token::Eof => "end of file",
-            Token::Identifier(_) => "identifier",
-            Token::Float(_) => "float",
-            Token::Integer(_) => "integer",
-            Token::ColonEqual => "':='",
-            Token::Nil => "'nil'",
-        }
-    }
+    infixes: HashMap<&'a str, (i32, bool, Rc<dyn Fn(Spanned<Expr>, Spanned<Expr>) -> Expr>)>,
 }
 
 impl<'a> Parser<'a> {
     pub fn new(s: &'a str) -> Self {
-        Self {
+        let mut parser = Self {
             lexer: Lexer::new(s),
-        }
+            infixes: HashMap::new(),
+        };
+
+        parser.insert_infix("=", 14, |lhs, rhs| {
+            Expr::Assign(Box::new(lhs), Box::new(rhs))
+        });
+
+        parser
     }
     pub fn parse_file(&'a mut self) -> Result<ast::Module, Error> {
         let mut stmts = Vec::<Spanned<ast::Statement>>::new();
@@ -103,37 +97,71 @@ impl<'a> Parser<'a> {
                 Ok(Spanned::new(Statement::Expr(expr), s))
             }
 
-            Token::ColonEqual | Token::Unknown | Token::Eof => self.unexpected(st, "statement"),
+            Token::Operator(_) | Token::ColonEqual | Token::Unknown | Token::Eof => {
+                self.unexpected(st, "statement")
+            }
         }
     }
 
     pub fn parse_expr(&mut self) -> Result<Spanned<ast::Expr>, Error> {
-        let st = self.lexer.peek();
+        let lhs = self.parse_primary_expr()?;
+        self.parse_expr_infix(lhs, 0)
+    }
+
+    pub fn parse_expr_infix(
+        &mut self,
+        mut lhs: Spanned<ast::Expr>,
+        min_prec: i32,
+    ) -> Result<Spanned<ast::Expr>, Error> {
+        while let Token::Operator(op) = self.lexer.peek().v
+            && let Some((prec, _, f)) = self.infixes.get(op.as_str()).cloned()
+            && prec >= min_prec
+        {
+            self.lexer.next_token();
+
+            let mut rhs = self.parse_primary_expr()?;
+
+            while let Token::Operator(op) = self.lexer.peek().v
+                && let Some((prec2, left2, _)) = self.infixes.get(op.as_str()).cloned()
+                && (prec < prec2 || (left2 && prec == prec2))
+            {
+                rhs = self.parse_expr_infix(rhs, prec + if prec2 < prec { 1 } else { 0 })?;
+            }
+            let s = lhs.s.join(&rhs.s);
+            lhs = Spanned::new(f(lhs, rhs), s);
+        }
+
+        Ok(lhs)
+    }
+
+    pub fn parse_primary_expr(&mut self) -> Result<Spanned<ast::Expr>, Error> {
+        let st = self.lexer.next_token();
         match st.v {
-            Token::Identifier(ident) => {
-                self.lexer.next_token();
-                Ok(Spanned::new(
-                    Expr::Var(Spanned::new(ident.to_string(), st.s.clone())),
-                    st.s,
-                ))
+            Token::Identifier(ident) => Ok(Spanned::new(
+                Expr::Var(Spanned::new(ident.to_string(), st.s.clone())),
+                st.s,
+            )),
+            Token::Float(f) => Ok(Spanned::new(Expr::Float(f), st.s)),
+            Token::Integer(i) => Ok(Spanned::new(Expr::Integer(i), st.s)),
+            Token::Nil => Ok(Spanned::new(Expr::Nil, st.s)),
+            Token::Unknown | Token::Eof | Token::ColonEqual | Token::Operator(..) => {
+                self.unexpected(st, "expression")
             }
-            Token::Float(f) => {
-                self.lexer.next_token();
-                Ok(Spanned::new(Expr::Float(f), st.s))
-            }
-            Token::Integer(i) => {
-                self.lexer.next_token();
-                Ok(Spanned::new(Expr::Integer(i), st.s))
-            }
-            Token::Nil => {
-                self.lexer.next_token();
-                Ok(Spanned::new(Expr::Nil, st.s))
-            }
-            Token::Unknown | Token::Eof | Token::ColonEqual => self.unexpected(st, "expression"),
         }
     }
 
     fn unexpected<T>(&mut self, got: Spanned<Token>, expected: &'static str) -> Result<T, Error> {
-        Err(Error::UnexpectedToken { got, expected })
+        Err(Error::UnexpectedToken {
+            got,
+            expected: expected.into(),
+        })
+    }
+
+    fn insert_infix<F>(&mut self, operator: &'static str, precedence: i32, create_expr: F)
+    where
+        F: Fn(Spanned<Expr>, Spanned<Expr>) -> Expr + 'static,
+    {
+        self.infixes
+            .insert(operator, (precedence, true, Rc::new(create_expr)));
     }
 }

@@ -11,15 +11,25 @@ pub enum Val {
     Float(f64),
 }
 
+impl Val {
+    pub fn type_name(&self) -> String {
+        match self {
+            Val::Nil => "nil".into(),
+            Val::Integer(..) => "integer".into(),
+            Val::Float(..) => "float".into(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum Error {
     Exotic {
-        message: &'static str,
+        message: String,
         span: Option<Span>,
         note: Option<String>,
     },
     UnresolvedVariable {
-        message: &'static str,
+        message: String,
         span: Span,
     },
 }
@@ -32,7 +42,7 @@ impl Error {
                 span,
                 note,
             } => {
-                let mut diag = Diagnostic::error().with_message(*message);
+                let mut diag = Diagnostic::error().with_message(message);
                 if let Some(s) = span {
                     let mut label = Label::primary(file_id, s.r.clone());
                     if let Some(n) = note {
@@ -43,7 +53,7 @@ impl Error {
                 diag
             }
             Error::UnresolvedVariable { message, span } => Diagnostic::error()
-                .with_message(*message)
+                .with_message(message)
                 .with_labels(vec![Label::primary(file_id, span.r.clone())]),
         }
     }
@@ -78,7 +88,7 @@ impl Env {
         }
 
         Err(Error::UnresolvedVariable {
-            message: "Could not look up variable",
+            message: "Could not look up variable".into(),
             span: sident.s.clone(),
         })
     }
@@ -100,7 +110,7 @@ impl Env {
         }
 
         Err(Error::UnresolvedVariable {
-            message: "Could not resolve variable when assigning",
+            message: "Could not resolve variable when assigning".into(),
             span: sident.s.clone(),
         })
     }
@@ -116,7 +126,7 @@ impl Eval for Statement {
             Statement::Expr(se) => se.v.eval(env),
             Statement::Declare { ident, expr } => {
                 let res = expr.v.eval(env)?;
-                env.declare(ident, res);
+                env.declare(ident, res)?;
                 Ok(Val::Nil)
             }
         }
@@ -130,6 +140,19 @@ impl Eval for Expr {
             Expr::Integer(i) => Ok(Val::Integer(*i)),
             Expr::Float(f) => Ok(Val::Float(*f)),
             Expr::Nil => Ok(Val::Nil),
+            Expr::Assign(lhs, rhs) => {
+                if let Expr::Var(ident) = &lhs.v {
+                    let res = rhs.v.eval(env)?;
+                    env.assign(ident, res.clone())?;
+                    Ok(res)
+                } else {
+                    Err(Error::Exotic {
+                        message: "Cannot assign to a non-variable".into(),
+                        span: Some(lhs.s.clone()),
+                        note: Some(format!("Found {}", lhs.v.describe())),
+                    })
+                }
+            }
         }
     }
 }

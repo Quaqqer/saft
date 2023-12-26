@@ -22,4 +22,27 @@ pub enum Expr {
     Integer(i64),
     Float(f64),
     Nil,
+
+    Assign(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
+}
+
+impl Expr {
+    pub fn describe(&self) -> &'static str {
+        match self {
+            Expr::Var(..) => "variable",
+            Expr::Integer(..) => "integer",
+            Expr::Float(..) => "float",
+            Expr::Nil => "nil",
+            Expr::Assign(..) => "assignment",
+        }
+    }
+}
+
+impl Statement {
+    pub fn describe(&self) -> &'static str {
+        match self {
+            Statement::Expr(..) => "expression statement",
+            Statement::Declare { .. } => "variable declaration",
+        }
+    }
 }
