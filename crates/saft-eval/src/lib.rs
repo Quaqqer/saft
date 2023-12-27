@@ -235,6 +235,7 @@ impl Eval for Expr {
                     }),
                 }
             }
+            Expr::Grouping(inner) => inner.v.eval(env),
         }
     }
 }

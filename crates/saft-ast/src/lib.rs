@@ -23,6 +23,7 @@ pub enum Expr {
     Integer(i64),
     Float(f64),
     Nil,
+    Grouping(Box<Spanned<Expr>>),
 
     Assign(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
     Add(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
@@ -43,6 +44,7 @@ impl Expr {
             Expr::Sub(..) => "subtraction",
             Expr::Mul(..) => "multiplication",
             Expr::Div(..) => "division",
+            Expr::Grouping(_) => "grouping",
         }
     }
 }

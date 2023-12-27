@@ -102,7 +102,12 @@ impl<'a> Parser<'a> {
                     ident_t.s.join(&expr_s),
                 ))
             }
-            Token::Identifier(_) | Token::Float(_) | Token::Integer(_) | Token::Nil => {
+
+            Token::LParen
+            | Token::Identifier(_)
+            | Token::Float(_)
+            | Token::Integer(_)
+            | Token::Nil => {
                 let expr = self.parse_expr()?;
                 let s = expr.s.clone();
                 Ok(Spanned::new(Statement::Expr(expr), s))
@@ -110,8 +115,7 @@ impl<'a> Parser<'a> {
 
             Token::Fn => self.parse_fn(),
 
-            Token::LParen
-            | Token::RParen
+            Token::RParen
             | Token::LBrace
             | Token::RBrace
             | Token::Comma
@@ -167,18 +171,28 @@ impl<'a> Parser<'a> {
             Token::Float(f) => Ok(Spanned::new(Expr::Float(f), st.s)),
             Token::Integer(i) => Ok(Spanned::new(Expr::Integer(i), st.s)),
             Token::Nil => Ok(Spanned::new(Expr::Nil, st.s)),
-            Token::Unknown | Token::Eof | Token::ColonEqual => self.unexpected(st, "expression"),
-            Token::Fn => todo!(),
-            Token::LParen => todo!(),
-            Token::RParen => todo!(),
-            Token::LBrace => todo!(),
-            Token::RBrace => todo!(),
-            Token::Comma => todo!(),
-            Token::Equal => todo!(),
-            Token::Plus => todo!(),
-            Token::Minus => todo!(),
-            Token::Star => todo!(),
-            Token::Slash => todo!(),
+            Token::LParen => {
+                let start = st.s;
+                let inner = self.parse_expr()?;
+                let end = self.eat(Token::RParen)?;
+                Ok(Spanned::new(
+                    Expr::Grouping(Box::new(inner)),
+                    start.join(&end),
+                ))
+            }
+            Token::Fn
+            | Token::RParen
+            | Token::LBrace
+            | Token::RBrace
+            | Token::Comma
+            | Token::Equal
+            | Token::Plus
+            | Token::Minus
+            | Token::Star
+            | Token::Slash
+            | Token::Unknown
+            | Token::Eof
+            | Token::ColonEqual => self.unexpected(st, "expression"),
         }
     }
 
