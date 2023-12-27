@@ -14,6 +14,7 @@ pub enum Statement {
         ident: Spanned<Ident>,
         expr: Spanned<Expr>,
     },
+    Item(Item),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -51,6 +52,18 @@ impl Statement {
         match self {
             Statement::Expr(..) => "expression statement",
             Statement::Declare { .. } => "variable declaration",
+            Statement::Item(item) => match item {
+                Item::Fn { .. } => "function declaration",
+            },
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Item {
+    Fn {
+        ident: Spanned<Ident>,
+        params: Vec<Spanned<Ident>>,
+        body: Vec<Spanned<Statement>>,
+    },
 }

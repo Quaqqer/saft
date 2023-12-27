@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use codespan_reporting::diagnostic::{Diagnostic, Label};
-use saft_ast::{Expr, Ident, Module, Statement};
+use saft_ast::{Expr, Ident, Module, Statement, Item};
 use saft_common::span::{Span, Spanned};
 
 #[derive(Debug, Clone)]
@@ -32,6 +32,10 @@ pub enum Error {
         message: String,
         span: Span,
     },
+    TypeError {
+        message: String,
+        span: Span,
+    },
 }
 
 impl Error {
@@ -54,6 +58,9 @@ impl Error {
             }
             Error::UnresolvedVariable { message, span } => Diagnostic::error()
                 .with_message(message)
+                .with_labels(vec![Label::primary(file_id, span.r.clone())]),
+            Error::TypeError { message, span } => Diagnostic::error()
+                .with_message(format!("TypeError: {}", message))
                 .with_labels(vec![Label::primary(file_id, span.r.clone())]),
         }
     }
@@ -129,7 +136,30 @@ impl Eval for Statement {
                 env.declare(ident, res)?;
                 Ok(Val::Nil)
             }
+            Statement::Item(Item::Fn { ident, params, body }) => todo!(),
         }
+    }
+}
+
+fn binary_num_promote(
+    lhs: &Spanned<Val>,
+    rhs: &Spanned<Val>,
+    op_name: &'static str,
+) -> Result<(Spanned<Val>, Spanned<Val>), Error> {
+    match (&lhs.v, &rhs.v) {
+        (Val::Integer(_), Val::Integer(_)) => Ok((lhs.clone(), rhs.clone())),
+        (Val::Float(_), Val::Float(_)) => Ok((lhs.clone(), rhs.clone())),
+        (Val::Integer(a), Val::Float(_)) => Ok((lhs.map(|_| Val::Float(*a as f64)), rhs.clone())),
+        (Val::Float(_), Val::Integer(b)) => Ok((lhs.clone(), rhs.map(|_| Val::Float(*b as f64)))),
+        _ => Err(Error::TypeError {
+            message: format!(
+                "Could not perform operation '{}' for operands of types {} and {}",
+                op_name,
+                lhs.v.type_name(),
+                rhs.v.type_name()
+            ),
+            span: lhs.s.join(&rhs.s),
+        }),
     }
 }
 

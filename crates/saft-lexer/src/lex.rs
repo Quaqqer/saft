@@ -15,6 +15,13 @@ macro_rules! mktoken {
     };
 }
 
+macro_rules! eat_token {
+    ($cursor:expr, $tok:expr) => {{
+        $cursor.advance();
+        mktoken!($cursor, $tok)
+    }};
+}
+
 #[derive(Clone, Debug)]
 struct Cursor<'a> {
     start: usize,
@@ -124,11 +131,18 @@ impl<'a> Lexer<'a> {
         let res = cur
             .peek()
             .map(|c| match c {
-                '=' if Self::eat_chars(&mut cur, "=") => mktoken!(cur, T::Operator("=".into())),
-                '+' if Self::eat_chars(&mut cur, "+") => mktoken!(cur, T::Operator("+".into())),
-                '-' if Self::eat_chars(&mut cur, "-") => mktoken!(cur, T::Operator("-".into())),
-                '*' if Self::eat_chars(&mut cur, "*") => mktoken!(cur, T::Operator("*".into())),
-                '/' if Self::eat_chars(&mut cur, "/") => mktoken!(cur, T::Operator("/".into())),
+                '(' => eat_token!(cur, T::LParen),
+                ')' => eat_token!(cur, T::RParen),
+                '{' => eat_token!(cur, T::LBrace),
+                '}' => eat_token!(cur, T::RBrace),
+                ',' => eat_token!(cur, T::Comma),
+
+                '=' => eat_token!(cur, T::Equal),
+                '+' => eat_token!(cur, T::Plus),
+                '-' => eat_token!(cur, T::Minus),
+                '*' => eat_token!(cur, T::Star),
+                '/' => eat_token!(cur, T::Slash),
+
                 ':' if Self::eat_chars(&mut cur, ":=") => mktoken!(cur, T::ColonEqual),
 
                 c if c.is_ascii_alphabetic() || c == '_' => {
@@ -137,6 +151,7 @@ impl<'a> Lexer<'a> {
 
                     match cur.str() {
                         "nil" => mktoken!(cur, T::Nil),
+                        "fn" => mktoken!(cur, T::Fn),
                         s => mktoken!(cur, T::Identifier(s.into())),
                     }
                 }
@@ -176,7 +191,7 @@ impl<'a> Lexer<'a> {
     fn is_delimiter(c: char) -> bool {
         match c {
             c if c.is_whitespace() => true,
-            ';' | '(' | ')' | '{' | '}' | '[' | ']' => true,
+            ';' | '(' | ')' | '{' | '}' | '[' | ']' | ',' => true,
             _ => false,
         }
     }
@@ -219,25 +234,22 @@ mod test {
 
     use saft_common::span::{span, Spanned};
 
-    use crate::{lex::Lexer, token::Token};
+    use crate::{lex::Lexer, token::Token as T};
 
-    fn expect_spanned_tokens(src: &'static str, spanned_tokens: Vec<Spanned<Token>>) {
+    fn expect_spanned_tokens(src: &'static str, spanned_tokens: Vec<Spanned<T>>) {
         assert_eq!(Lexer::new(src).all_tokens(), spanned_tokens);
     }
 
-    fn spanned<'a>(t: Token, r: Range<usize>) -> Spanned<Token> {
+    fn spanned<'a>(t: T, r: Range<usize>) -> Spanned<T> {
         Spanned::new(t, span(r))
     }
 
     #[test]
     fn integers() {
-        expect_spanned_tokens("123", vec![spanned(Token::Integer(123), 0..3)]);
+        expect_spanned_tokens("123", vec![spanned(T::Integer(123), 0..3)]);
         expect_spanned_tokens(
             " 1 3",
-            vec![
-                spanned(Token::Integer(1), 1..2),
-                spanned(Token::Integer(3), 3..4),
-            ],
+            vec![spanned(T::Integer(1), 1..2), spanned(T::Integer(3), 3..4)],
         );
     }
 
@@ -246,9 +258,9 @@ mod test {
         expect_spanned_tokens(
             "1.23 123. .123",
             vec![
-                spanned(Token::Float(1.23), 0..4),
-                spanned(Token::Float(123.0), 5..9),
-                spanned(Token::Float(0.123), 10..14),
+                spanned(T::Float(1.23), 0..4),
+                spanned(T::Float(123.0), 5..9),
+                spanned(T::Float(0.123), 10..14),
             ],
         );
     }
@@ -258,17 +270,17 @@ mod test {
         expect_spanned_tokens(
             "x f z _hej hej_ h_ej Hej hEj hej123 _123 _hej123",
             vec![
-                spanned(Token::Identifier("x".into()), 0..1),
-                spanned(Token::Identifier("f".into()), 2..3),
-                spanned(Token::Identifier("z".into()), 4..5),
-                spanned(Token::Identifier("_hej".into()), 6..10),
-                spanned(Token::Identifier("hej_".into()), 11..15),
-                spanned(Token::Identifier("h_ej".into()), 16..20),
-                spanned(Token::Identifier("Hej".into()), 21..24),
-                spanned(Token::Identifier("hEj".into()), 25..28),
-                spanned(Token::Identifier("hej123".into()), 29..35),
-                spanned(Token::Identifier("_123".into()), 36..40),
-                spanned(Token::Identifier("_hej123".into()), 41..48),
+                spanned(T::Identifier("x".into()), 0..1),
+                spanned(T::Identifier("f".into()), 2..3),
+                spanned(T::Identifier("z".into()), 4..5),
+                spanned(T::Identifier("_hej".into()), 6..10),
+                spanned(T::Identifier("hej_".into()), 11..15),
+                spanned(T::Identifier("h_ej".into()), 16..20),
+                spanned(T::Identifier("Hej".into()), 21..24),
+                spanned(T::Identifier("hEj".into()), 25..28),
+                spanned(T::Identifier("hej123".into()), 29..35),
+                spanned(T::Identifier("_123".into()), 36..40),
+                spanned(T::Identifier("_hej123".into()), 41..48),
             ],
         )
     }
@@ -276,34 +288,58 @@ mod test {
     #[test]
     fn lookahead() {
         let mut lexer = Lexer::new("hej 123 456.789");
-        assert_eq!(lexer.peek_n(3), spanned(Token::Float(456.789), 8..15));
+        assert_eq!(lexer.peek_n(3), spanned(T::Float(456.789), 8..15));
         assert_eq!(
             lexer.next_token(),
-            spanned(Token::Identifier("hej".into()), 0..3)
+            spanned(T::Identifier("hej".into()), 0..3)
         );
-        assert_eq!(lexer.peek_n(2), spanned(Token::Float(456.789), 8..15));
+        assert_eq!(lexer.peek_n(2), spanned(T::Float(456.789), 8..15));
         assert_eq!(lexer.lookahead.len(), 2);
     }
 
     #[test]
     fn whitespace_eof() {
         let mut lexer = Lexer::new("   \t\n ");
-        assert_eq!(lexer.next_token(), spanned(Token::Eof, 6..6));
+        assert_eq!(lexer.next_token(), spanned(T::Eof, 6..6));
     }
 
     #[test]
     fn keywords() {
-        expect_spanned_tokens("nil", vec![spanned(Token::Nil, 0..3)]);
+        expect_spanned_tokens("nil", vec![spanned(T::Nil, 0..3)]);
     }
 
     #[test]
     fn operators() {
         expect_spanned_tokens(
-            "= :=",
+            "= := + - * /",
             vec![
-                spanned(Token::Operator("=".into()), 0..1),
-                spanned(Token::ColonEqual, 2..4),
+                spanned(T::Equal, 0..1),
+                spanned(T::ColonEqual, 2..4),
+                spanned(T::Plus, 5..6),
+                spanned(T::Minus, 7..8),
+                spanned(T::Star, 9..10),
+                spanned(T::Slash, 11..12),
             ],
         );
+    }
+
+    #[test]
+    fn fn_() {
+        expect_spanned_tokens(
+            "fn test(a, b, c) {}",
+            vec![
+                spanned(T::Fn, 0..2),
+                spanned(T::Identifier("test".into()), 3..7),
+                spanned(T::LParen, 7..8),
+                spanned(T::Identifier("a".into()), 8..9),
+                spanned(T::Comma, 9..10),
+                spanned(T::Identifier("b".into()), 11..12),
+                spanned(T::Comma, 12..13),
+                spanned(T::Identifier("c".into()), 14..15),
+                spanned(T::RParen, 15..16),
+                spanned(T::LBrace, 17..18),
+                spanned(T::RBrace, 18..19),
+            ],
+        )
     }
 }

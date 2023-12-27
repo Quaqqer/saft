@@ -3,13 +3,25 @@ pub enum Token {
     Unknown,
     Eof,
 
+    Fn,
+
+    LParen,
+    RParen,
+    LBrace,
+    RBrace,
+    Comma,
+
     Identifier(String),
     Float(f64),
     Integer(i64),
     Nil,
 
     ColonEqual,
-    Operator(String),
+    Equal,
+    Plus,
+    Minus,
+    Star,
+    Slash,
 }
 
 impl Token {
@@ -22,7 +34,17 @@ impl Token {
             Token::Integer(..) => "integer".into(),
             Token::ColonEqual => "':='".into(),
             Token::Nil => "'nil'".into(),
-            Token::Operator(op) => format!("'{}'", op),
+            Token::Fn => "'fn'".into(),
+            Token::LParen => "'('".into(),
+            Token::RParen => "')'".into(),
+            Token::LBrace => "'{'".into(),
+            Token::RBrace => "'}'".into(),
+            Token::Comma => "','".into(),
+            Token::Equal => "'='".into(),
+            Token::Plus => "'+'".into(),
+            Token::Minus => "'-'".into(),
+            Token::Star => "'*'".into(),
+            Token::Slash => "'/'".into(),
         }
     }
 }

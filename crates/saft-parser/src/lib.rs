@@ -1,11 +1,9 @@
 #![feature(let_chains)]
 
-use std::{collections::HashMap, rc::Rc};
-
-use ast::{Expr, Module, Statement};
+use ast::{Expr, Item, Module, Statement};
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use saft_ast as ast;
-use saft_common::span::Spanned;
+use saft_common::span::{Span, Spanned};
 use saft_lexer::{lex::Lexer, token::Token};
 
 #[derive(Clone, Debug)]
@@ -30,25 +28,13 @@ impl Error {
 
 pub struct Parser<'a> {
     lexer: Lexer<'a>,
-    infixes: HashMap<&'a str, (i32, bool, Rc<dyn Fn(Spanned<Expr>, Spanned<Expr>) -> Expr>)>,
 }
 
 impl<'a> Parser<'a> {
     pub fn new(s: &'a str) -> Self {
-        let mut parser = Self {
+        Self {
             lexer: Lexer::new(s),
-            infixes: HashMap::new(),
-        };
-
-        parser.insert_infix("=", 14, |lhs, rhs| {
-            Expr::Assign(Box::new(lhs), Box::new(rhs))
-        });
-        parser.insert_infix("+", 4, |lhs, rhs| Expr::Add(Box::new(lhs), Box::new(rhs)));
-        parser.insert_infix("-", 4, |lhs, rhs| Expr::Sub(Box::new(lhs), Box::new(rhs)));
-        parser.insert_infix("*", 14, |lhs, rhs| Expr::Mul(Box::new(lhs), Box::new(rhs)));
-        parser.insert_infix("/", 14, |lhs, rhs| Expr::Div(Box::new(lhs), Box::new(rhs)));
-
-        parser
+        }
     }
     pub fn parse_file(&'a mut self) -> Result<ast::Module, Error> {
         let mut stmts = Vec::<Spanned<ast::Statement>>::new();
@@ -60,14 +46,36 @@ impl<'a> Parser<'a> {
         Ok(Module { stmts })
     }
 
-    fn eat(&mut self, t: Token) -> Result<(), Error> {
+    fn eat(&mut self, t: Token) -> Result<Span, Error> {
         let st = self.lexer.next_token();
         match st.v {
-            v if v == t => Ok(()),
+            v if v == t => Ok(st.s),
             _ => Err(Error::UnexpectedToken {
                 got: st,
                 expected: t.describe(),
             }),
+        }
+    }
+
+    fn eat_ident(&mut self) -> Result<Spanned<String>, Error> {
+        let st = self.lexer.next_token();
+        match &st.v {
+            Token::Identifier(ident) => Ok(st.map(|_| ident.clone())),
+            _ => Err(Error::UnexpectedToken {
+                got: st,
+                expected: Token::Identifier("".into()).describe(),
+            }),
+        }
+    }
+
+    fn try_eat(&mut self, t: Token) -> bool {
+        let st = self.lexer.peek();
+        match st.v {
+            v if v == t => {
+                self.eat(t).unwrap();
+                true
+            }
+            _ => false,
         }
     }
 
@@ -100,9 +108,21 @@ impl<'a> Parser<'a> {
                 Ok(Spanned::new(Statement::Expr(expr), s))
             }
 
-            Token::Operator(_) | Token::ColonEqual | Token::Unknown | Token::Eof => {
-                self.unexpected(st, "statement")
-            }
+            Token::Fn => self.parse_fn(),
+
+            Token::LParen
+            | Token::RParen
+            | Token::LBrace
+            | Token::RBrace
+            | Token::Comma
+            | Token::Equal
+            | Token::Plus
+            | Token::Minus
+            | Token::Star
+            | Token::Slash
+            | Token::ColonEqual
+            | Token::Unknown
+            | Token::Eof => self.unexpected(st, "statement"),
         }
     }
 
@@ -116,16 +136,16 @@ impl<'a> Parser<'a> {
         mut lhs: Spanned<ast::Expr>,
         min_prec: i32,
     ) -> Result<Spanned<ast::Expr>, Error> {
-        while let Token::Operator(op) = self.lexer.peek().v
-            && let Some((prec, _, f)) = self.infixes.get(op.as_str()).cloned()
+        while let t = self.lexer.peek().v
+            && let Some((prec, _, f)) = Self::infix(&t)
             && prec >= min_prec
         {
             self.lexer.next_token();
 
             let mut rhs = self.parse_primary_expr()?;
 
-            while let Token::Operator(op) = self.lexer.peek().v
-                && let Some((prec2, left2, _)) = self.infixes.get(op.as_str()).cloned()
+            while let t = self.lexer.peek().v
+                && let Some((prec2, left2, _)) = Self::infix(&t)
                 && (prec < prec2 || (left2 && prec == prec2))
             {
                 rhs = self.parse_expr_infix(rhs, prec + if prec2 < prec { 1 } else { 0 })?;
@@ -147,9 +167,18 @@ impl<'a> Parser<'a> {
             Token::Float(f) => Ok(Spanned::new(Expr::Float(f), st.s)),
             Token::Integer(i) => Ok(Spanned::new(Expr::Integer(i), st.s)),
             Token::Nil => Ok(Spanned::new(Expr::Nil, st.s)),
-            Token::Unknown | Token::Eof | Token::ColonEqual | Token::Operator(..) => {
-                self.unexpected(st, "expression")
-            }
+            Token::Unknown | Token::Eof | Token::ColonEqual => self.unexpected(st, "expression"),
+            Token::Fn => todo!(),
+            Token::LParen => todo!(),
+            Token::RParen => todo!(),
+            Token::LBrace => todo!(),
+            Token::RBrace => todo!(),
+            Token::Comma => todo!(),
+            Token::Equal => todo!(),
+            Token::Plus => todo!(),
+            Token::Minus => todo!(),
+            Token::Star => todo!(),
+            Token::Slash => todo!(),
         }
     }
 
@@ -160,11 +189,64 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn insert_infix<F>(&mut self, operator: &'static str, precedence: i32, create_expr: F)
-    where
-        F: Fn(Spanned<Expr>, Spanned<Expr>) -> Expr + 'static,
-    {
-        self.infixes
-            .insert(operator, (precedence, true, Rc::new(create_expr)));
+    fn infix(t: &Token) -> Option<(i32, bool, Box<dyn Fn(Spanned<Expr>, Spanned<Expr>) -> Expr>)> {
+        match t {
+            Token::Equal => Some((
+                14,
+                true,
+                Box::new(|lhs, rhs| Expr::Assign(Box::new(lhs), Box::new(rhs))),
+            )),
+            Token::Plus => Some((
+                4,
+                true,
+                Box::new(|lhs, rhs| Expr::Add(Box::new(lhs), Box::new(rhs))),
+            )),
+            Token::Minus => Some((
+                4,
+                true,
+                Box::new(|lhs, rhs| Expr::Sub(Box::new(lhs), Box::new(rhs))),
+            )),
+            Token::Star => Some((
+                3,
+                true,
+                Box::new(|lhs, rhs| Expr::Mul(Box::new(lhs), Box::new(rhs))),
+            )),
+            Token::Slash => Some((
+                3,
+                true,
+                Box::new(|lhs, rhs| Expr::Div(Box::new(lhs), Box::new(rhs))),
+            )),
+            _ => None,
+        }
+    }
+
+    fn parse_fn(&mut self) -> Result<Spanned<Statement>, Error> {
+        let start = self.eat(Token::Fn)?;
+        let ident = self.eat_ident()?;
+
+        let mut params = Vec::new();
+
+        self.eat(Token::LParen)?;
+        while self.lexer.peek().v != Token::RParen {
+            let param = self.eat_ident()?;
+            params.push(param);
+
+            if !self.try_eat(Token::Comma) {
+                break;
+            }
+        }
+        self.eat(Token::RParen)?;
+
+        self.eat(Token::LBrace)?;
+        let end = self.eat(Token::RBrace)?;
+
+        Ok(Spanned::new(
+            Statement::Item(Item::Fn {
+                ident,
+                params,
+                body: vec![],
+            }),
+            start.join(&end),
+        ))
     }
 }
