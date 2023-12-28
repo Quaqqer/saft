@@ -136,7 +136,7 @@ impl<'a> Parser<'a> {
         self.parse_expr_infix(lhs, 0)
     }
 
-    pub fn parse_expr_infix(
+    fn parse_expr_infix(
         &mut self,
         mut lhs: Spanned<ast::Expr>,
         min_prec: i32,
@@ -156,14 +156,13 @@ impl<'a> Parser<'a> {
                 rhs = self.parse_expr_infix(rhs, prec + if prec2 < prec { 1 } else { 0 })?;
             }
 
-            let s = lhs.s.join(&rhs.s);
-            lhs = Spanned::new(f(lhs, rhs), s);
+            lhs = f(lhs, rhs);
         }
 
         Ok(lhs)
     }
 
-    pub fn parse_primary_expr(&mut self) -> Result<Spanned<ast::Expr>, Error> {
+    fn parse_primary_expr(&mut self) -> Result<Spanned<ast::Expr>, Error> {
         let st = self.lexer.next();
         match st.v {
             Token::Identifier(ident) => Ok(Spanned::new(
@@ -206,38 +205,33 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn infix(t: &Token) -> Option<(i32, bool, Box<dyn Fn(Spanned<Expr>, Spanned<Expr>) -> Expr>)> {
+    fn infix(
+        t: &Token,
+    ) -> Option<(
+        i32,
+        bool,
+        Box<dyn Fn(Spanned<Expr>, Spanned<Expr>) -> Spanned<Expr>>,
+    )> {
+        macro_rules! binop {
+            ($variant:path, $prec:expr, $left_assoc:expr) => {{
+                Some((
+                    $prec,
+                    $left_assoc,
+                    Box::new(|lhs, rhs| {
+                        let s = lhs.s.join(&rhs.s);
+                        Spanned::new($variant(Box::new(lhs), Box::new(rhs)), s)
+                    }),
+                ))
+            }};
+        }
+
         match t {
-            Token::Equal => Some((
-                0,
-                true,
-                Box::new(|lhs, rhs| Expr::Assign(Box::new(lhs), Box::new(rhs))),
-            )),
-            Token::Plus => Some((
-                1,
-                true,
-                Box::new(|lhs, rhs| Expr::Add(Box::new(lhs), Box::new(rhs))),
-            )),
-            Token::Minus => Some((
-                2,
-                true,
-                Box::new(|lhs, rhs| Expr::Sub(Box::new(lhs), Box::new(rhs))),
-            )),
-            Token::Star => Some((
-                3,
-                true,
-                Box::new(|lhs, rhs| Expr::Mul(Box::new(lhs), Box::new(rhs))),
-            )),
-            Token::Slash => Some((
-                3,
-                true,
-                Box::new(|lhs, rhs| Expr::Div(Box::new(lhs), Box::new(rhs))),
-            )),
-            Token::Caret => Some((
-                4,
-                false,
-                Box::new(|lhs, rhs| Expr::Pow(Box::new(lhs), Box::new(rhs))),
-            )),
+            Token::Equal => binop!(Expr::Assign, 0, true),
+            Token::Plus => binop!(Expr::Add, 1, true),
+            Token::Minus => binop!(Expr::Sub, 1, true),
+            Token::Star => binop!(Expr::Mul, 2, true),
+            Token::Slash => binop!(Expr::Div, 2, true),
+            Token::Caret => binop!(Expr::Pow, 3, false),
             _ => None,
         }
     }
