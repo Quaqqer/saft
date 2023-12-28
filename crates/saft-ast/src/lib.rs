@@ -30,6 +30,7 @@ pub enum Expr {
     Sub(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
     Mul(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
     Div(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
+    Pow(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
 }
 
 impl Expr {
@@ -44,6 +45,7 @@ impl Expr {
             Expr::Sub(..) => "subtraction",
             Expr::Mul(..) => "multiplication",
             Expr::Div(..) => "division",
+            Expr::Pow(_, _) => "pow",
             Expr::Grouping(_) => "grouping",
         }
     }

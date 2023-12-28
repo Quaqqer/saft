@@ -22,29 +22,33 @@ pub enum Token {
     Minus,
     Star,
     Slash,
+    Caret,
 }
 
 impl Token {
-    pub fn describe(&self) -> String {
+    pub fn describe(&self) -> &'static str {
+        use Token::*;
+
         match self {
-            Token::Unknown => "unknown token".into(),
-            Token::Eof => "end of file".into(),
-            Token::Identifier(..) => "identifier".into(),
-            Token::Float(..) => "float".into(),
-            Token::Integer(..) => "integer".into(),
-            Token::ColonEqual => "':='".into(),
-            Token::Nil => "'nil'".into(),
-            Token::Fn => "'fn'".into(),
-            Token::LParen => "'('".into(),
-            Token::RParen => "')'".into(),
-            Token::LBrace => "'{'".into(),
-            Token::RBrace => "'}'".into(),
-            Token::Comma => "','".into(),
-            Token::Equal => "'='".into(),
-            Token::Plus => "'+'".into(),
-            Token::Minus => "'-'".into(),
-            Token::Star => "'*'".into(),
-            Token::Slash => "'/'".into(),
+            Unknown => "unknown token",
+            Eof => "end of file",
+            Identifier(..) => "identifier",
+            Float(..) => "float",
+            Integer(..) => "integer",
+            ColonEqual => "':='",
+            Nil => "'nil'",
+            Fn => "'fn'",
+            LParen => "'('",
+            RParen => "')'",
+            LBrace => "'{'",
+            RBrace => "'}'",
+            Comma => "','",
+            Equal => "'='",
+            Plus => "'+'",
+            Minus => "'-'",
+            Star => "'*'",
+            Slash => "'/'",
+            Caret => "'^'",
         }
     }
 }

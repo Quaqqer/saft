@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use codespan_reporting::diagnostic::{Diagnostic, Label};
-use saft_ast::{Expr, Ident, Module, Statement, Item};
+use saft_ast::{Expr, Ident, Item, Module, Statement};
 use saft_common::span::{Span, Spanned};
 
 #[derive(Debug, Clone)]
@@ -136,7 +136,11 @@ impl Eval for Statement {
                 env.declare(ident, res)?;
                 Ok(Val::Nil)
             }
-            Statement::Item(Item::Fn { ident, params, body }) => todo!(),
+            Statement::Item(Item::Fn {
+                ident,
+                params,
+                body,
+            }) => todo!(),
         }
     }
 }
@@ -228,6 +232,19 @@ impl Eval for Expr {
 
                 match (lv, rv) {
                     (Val::Integer(a), Val::Integer(b)) => Ok(Val::Integer(a / b)),
+                    _ => Err(Error::Exotic {
+                        message: "Binary operation error".into(),
+                        span: Some(lhs.s.join(&rhs.s)),
+                        note: None,
+                    }),
+                }
+            }
+            Expr::Pow(lhs, rhs) => {
+                let lv = lhs.v.eval(env)?;
+                let rv = rhs.v.eval(env)?;
+
+                match (lv, rv) {
+                    (Val::Integer(a), Val::Integer(b)) => Ok(Val::Integer(a.pow(b as u32))),
                     _ => Err(Error::Exotic {
                         message: "Binary operation error".into(),
                         span: Some(lhs.s.join(&rhs.s)),

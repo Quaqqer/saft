@@ -114,7 +114,7 @@ impl<'a> Lexer<'a> {
         true
     }
 
-    pub fn next_token(&mut self) -> Spanned<Token> {
+    pub fn next(&mut self) -> Spanned<Token> {
         self.lookahead
             .pop_front()
             .unwrap_or_else(|| self.advance_token())
@@ -142,6 +142,7 @@ impl<'a> Lexer<'a> {
                 '-' => eat_token!(cur, T::Minus),
                 '*' => eat_token!(cur, T::Star),
                 '/' => eat_token!(cur, T::Slash),
+                '^' => eat_token!(cur, T::Caret),
 
                 ':' if Self::eat_chars(&mut cur, ":=") => mktoken!(cur, T::ColonEqual),
 
@@ -218,7 +219,7 @@ impl<'a> Lexer<'a> {
         let mut vals = Vec::new();
 
         loop {
-            match self.next_token() {
+            match self.next() {
                 Spanned { v: Token::Eof, .. } => break,
                 t => vals.push(t),
             }
@@ -289,10 +290,7 @@ mod test {
     fn lookahead() {
         let mut lexer = Lexer::new("hej 123 456.789");
         assert_eq!(lexer.peek_n(3), spanned(T::Float(456.789), 8..15));
-        assert_eq!(
-            lexer.next_token(),
-            spanned(T::Identifier("hej".into()), 0..3)
-        );
+        assert_eq!(lexer.next(), spanned(T::Identifier("hej".into()), 0..3));
         assert_eq!(lexer.peek_n(2), spanned(T::Float(456.789), 8..15));
         assert_eq!(lexer.lookahead.len(), 2);
     }
@@ -300,7 +298,7 @@ mod test {
     #[test]
     fn whitespace_eof() {
         let mut lexer = Lexer::new("   \t\n ");
-        assert_eq!(lexer.next_token(), spanned(T::Eof, 6..6));
+        assert_eq!(lexer.next(), spanned(T::Eof, 6..6));
     }
 
     #[test]
@@ -311,7 +309,7 @@ mod test {
     #[test]
     fn operators() {
         expect_spanned_tokens(
-            "= := + - * /",
+            "= := + - * / ^",
             vec![
                 spanned(T::Equal, 0..1),
                 spanned(T::ColonEqual, 2..4),
@@ -319,6 +317,7 @@ mod test {
                 spanned(T::Minus, 7..8),
                 spanned(T::Star, 9..10),
                 spanned(T::Slash, 11..12),
+                spanned(T::Caret, 13..14),
             ],
         );
     }

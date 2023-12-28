@@ -37,3 +37,7 @@ impl<T> Spanned<T> {
         Spanned::new(f(&self.v), self.s.clone())
     }
 }
+
+pub fn spanned<T>(v: T, r: Range<usize>) -> Spanned<T> {
+    Spanned::new(v, Span::new(r))
+}
