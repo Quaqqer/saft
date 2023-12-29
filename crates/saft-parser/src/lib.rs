@@ -13,7 +13,8 @@ mod prec {
     pub const FACTOR: i32 = 3;
     pub const UNARY: i32 = 4;
     pub const EXP: i32 = 5;
-    pub const PRIMARY: i32 = 6;
+    pub const CALL: i32 = 6;
+    pub const PRIMARY: i32 = 5;
 }
 
 #[derive(Clone, Debug)]
@@ -205,12 +206,35 @@ impl<'a> Parser<'a> {
         }
 
         match t {
-            Token::Equal => binop!(prec::ASSIGN, true, Expr::Assign),
+            Token::Equal => binop!(prec::ASSIGN, false, Expr::Assign),
             Token::Plus => binop!(prec::TERM, true, Expr::Add),
             Token::Minus => binop!(prec::TERM, true, Expr::Sub),
             Token::Star => binop!(prec::FACTOR, true, Expr::Mul),
             Token::Slash => binop!(prec::FACTOR, true, Expr::Div),
             Token::Caret => binop!(prec::EXP, false, Expr::Pow),
+            Token::LParen => Some((
+                prec::CALL,
+                Box::new(|lhs, parser| {
+                    parser.eat(Token::LParen)?;
+
+                    let mut arguments = Vec::new();
+
+                    while parser.lexer.peek().v != Token::RParen {
+                        let arg = parser.parse_expr()?;
+                        arguments.push(arg);
+
+                        let ate_comma = parser.try_eat(Token::Comma);
+                        if !ate_comma {
+                            break;
+                        }
+                    }
+
+                    let end = parser.eat(Token::RParen)?;
+                    let s = lhs.s.join(&end);
+
+                    Ok(Spanned::new(Expr::Call(Box::new(lhs), arguments), s))
+                }),
+            )),
             _ => None,
         }
     }

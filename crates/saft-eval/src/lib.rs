@@ -253,7 +253,15 @@ impl Eval for Expr {
                 }
             }
             Expr::Grouping(inner) => inner.v.eval(env),
-            Expr::Call(_, _) => todo!(),
+            Expr::Call(f, args) => {
+                let fun = f.v.eval(env)?;
+                let mut arg_vals = Vec::new();
+                for arg in args {
+                    arg_vals.push(arg.v.eval(env)?);
+                }
+                println!("{:?} {:?}", fun, arg_vals);
+                Ok(Val::Nil)
+            }
             Expr::Neg(expr) => {
                 let res = expr.v.eval(env)?;
                 match res {
