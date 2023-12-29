@@ -6,6 +6,16 @@ use saft_ast as ast;
 use saft_common::span::{Span, Spanned};
 use saft_lexer::{lex::Lexer, token::Token};
 
+mod prec {
+    pub const NONE: i32 = 0;
+    pub const ASSIGN: i32 = 1;
+    pub const TERM: i32 = 2;
+    pub const FACTOR: i32 = 3;
+    pub const UNARY: i32 = 4;
+    pub const EXP: i32 = 5;
+    pub const PRIMARY: i32 = 6;
+}
+
 #[derive(Clone, Debug)]
 pub enum Error {
     UnexpectedToken {
@@ -104,6 +114,7 @@ impl<'a> Parser<'a> {
             }
 
             Token::LParen
+            | Token::Minus
             | Token::Identifier(_)
             | Token::Float(_)
             | Token::Integer(_)
@@ -115,54 +126,15 @@ impl<'a> Parser<'a> {
 
             Token::Fn => self.parse_fn(),
 
-            Token::RParen
-            | Token::LBrace
-            | Token::RBrace
-            | Token::Comma
-            | Token::Equal
-            | Token::Plus
-            | Token::Minus
-            | Token::Star
-            | Token::Slash
-            | Token::ColonEqual
-            | Token::Caret
-            | Token::Unknown
-            | Token::Eof => self.unexpected(st, "statement"),
+            _ => self.unexpected(st, "statement"),
         }
     }
 
-    pub fn parse_expr(&mut self) -> Result<Spanned<ast::Expr>, Error> {
-        let lhs = self.parse_primary_expr()?;
-        self.parse_expr_infix(lhs, 0)
+    pub fn parse_expr(&mut self) -> Result<Spanned<Expr>, Error> {
+        self.parse_precedence(prec::NONE)
     }
 
-    fn parse_expr_infix(
-        &mut self,
-        mut lhs: Spanned<ast::Expr>,
-        min_prec: i32,
-    ) -> Result<Spanned<ast::Expr>, Error> {
-        while let t = self.lexer.peek().v
-            && let Some((prec, _, f)) = Self::infix(&t)
-            && prec >= min_prec
-        {
-            self.lexer.next();
-
-            let mut rhs = self.parse_primary_expr()?;
-
-            while let t = self.lexer.peek().v
-                && let Some((prec2, left2, _)) = Self::infix(&t)
-                && (prec < prec2 || (!left2 && prec == prec2))
-            {
-                rhs = self.parse_expr_infix(rhs, prec + if prec2 < prec { 1 } else { 0 })?;
-            }
-
-            lhs = f(lhs, rhs);
-        }
-
-        Ok(lhs)
-    }
-
-    fn parse_primary_expr(&mut self) -> Result<Spanned<ast::Expr>, Error> {
+    fn parse_primary_expr(&mut self) -> Result<Spanned<Expr>, Error> {
         let st = self.lexer.next();
         match st.v {
             Token::Identifier(ident) => Ok(Spanned::new(
@@ -181,20 +153,13 @@ impl<'a> Parser<'a> {
                     start.join(&end),
                 ))
             }
-            Token::Fn
-            | Token::RParen
-            | Token::LBrace
-            | Token::RBrace
-            | Token::Comma
-            | Token::Equal
-            | Token::Plus
-            | Token::Minus
-            | Token::Star
-            | Token::Slash
-            | Token::Unknown
-            | Token::Eof
-            | Token::Caret
-            | Token::ColonEqual => self.unexpected(st, "expression"),
+            Token::Minus => {
+                let expr = self.parse_precedence(prec::UNARY + 1)?;
+                let s = st.s.join(&expr.s);
+                Ok(Spanned::new(Expr::Neg(Box::new(expr)), s))
+            }
+
+            _ => self.unexpected(st, "expression"),
         }
     }
 
@@ -205,33 +170,47 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn infix(
+    fn parse_precedence(&mut self, min_prec: i32) -> Result<Spanned<Expr>, Error> {
+        let mut expr = self.parse_primary_expr()?;
+
+        while let Some((post_prec, post_rule)) = Self::post_rule(&self.lexer.peek().v)
+            && min_prec <= post_prec
+        {
+            expr = post_rule(expr, self)?;
+        }
+
+        Ok(expr)
+    }
+
+    /// Postfix and infix rules
+    fn post_rule(
         t: &Token,
     ) -> Option<(
         i32,
-        bool,
-        Box<dyn Fn(Spanned<Expr>, Spanned<Expr>) -> Spanned<Expr>>,
+        Box<dyn Fn(Spanned<Expr>, &mut Parser) -> Result<Spanned<Expr>, Error>>,
     )> {
         macro_rules! binop {
-            ($variant:path, $prec:expr, $left_assoc:expr) => {{
+            ($prec:expr, $left_assoc:expr, $variant:path) => {
                 Some((
                     $prec,
-                    $left_assoc,
-                    Box::new(|lhs, rhs| {
+                    Box::new(|lhs, parser| {
+                        parser.lexer.next();
+                        let next_prec = if $left_assoc { $prec + 1 } else { $prec };
+                        let rhs = parser.parse_precedence(next_prec)?;
                         let s = lhs.s.join(&rhs.s);
-                        Spanned::new($variant(Box::new(lhs), Box::new(rhs)), s)
+                        Ok(Spanned::new($variant(Box::new(lhs), Box::new(rhs)), s))
                     }),
                 ))
-            }};
+            };
         }
 
         match t {
-            Token::Equal => binop!(Expr::Assign, 0, true),
-            Token::Plus => binop!(Expr::Add, 1, true),
-            Token::Minus => binop!(Expr::Sub, 1, true),
-            Token::Star => binop!(Expr::Mul, 2, true),
-            Token::Slash => binop!(Expr::Div, 2, true),
-            Token::Caret => binop!(Expr::Pow, 3, false),
+            Token::Equal => binop!(prec::ASSIGN, true, Expr::Assign),
+            Token::Plus => binop!(prec::TERM, true, Expr::Add),
+            Token::Minus => binop!(prec::TERM, true, Expr::Sub),
+            Token::Star => binop!(prec::FACTOR, true, Expr::Mul),
+            Token::Slash => binop!(prec::FACTOR, true, Expr::Div),
+            Token::Caret => binop!(prec::EXP, false, Expr::Pow),
             _ => None,
         }
     }

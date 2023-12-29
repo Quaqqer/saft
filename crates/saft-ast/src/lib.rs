@@ -25,6 +25,9 @@ pub enum Expr {
     Nil,
     Grouping(Box<Spanned<Expr>>),
 
+    Call(Box<Spanned<Expr>>, Vec<Spanned<Expr>>),
+
+    Neg(Box<Spanned<Expr>>),
     Assign(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
     Add(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
     Sub(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
@@ -35,18 +38,21 @@ pub enum Expr {
 
 impl Expr {
     pub fn describe(&self) -> &'static str {
+        use Expr::*;
         match self {
-            Expr::Var(..) => "variable",
-            Expr::Integer(..) => "integer",
-            Expr::Float(..) => "float",
-            Expr::Nil => "nil",
-            Expr::Assign(..) => "assignment",
-            Expr::Add(..) => "addition",
-            Expr::Sub(..) => "subtraction",
-            Expr::Mul(..) => "multiplication",
-            Expr::Div(..) => "division",
-            Expr::Pow(_, _) => "pow",
-            Expr::Grouping(_) => "grouping",
+            Var(..) => "variable",
+            Integer(..) => "integer",
+            Float(..) => "float",
+            Nil => "nil",
+            Assign(..) => "assignment",
+            Add(..) => "addition",
+            Sub(..) => "subtraction",
+            Mul(..) => "multiplication",
+            Div(..) => "division",
+            Pow(..) => "pow",
+            Grouping(..) => "grouping",
+            Call(..) => "call",
+            Neg(_) => "negation",
         }
     }
 }

@@ -253,6 +253,19 @@ impl Eval for Expr {
                 }
             }
             Expr::Grouping(inner) => inner.v.eval(env),
+            Expr::Call(_, _) => todo!(),
+            Expr::Neg(expr) => {
+                let res = expr.v.eval(env)?;
+                match res {
+                    Val::Integer(i) => Ok(Val::Integer(-i)),
+                    Val::Float(f) => Ok(Val::Float(-f)),
+                    _ => Err(Error::Exotic {
+                        message: "Cannot negate value".into(),
+                        span: Some(expr.s.clone()),
+                        note: None,
+                    }),
+                }
+            }
         }
     }
 }
