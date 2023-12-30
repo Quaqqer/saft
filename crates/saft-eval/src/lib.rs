@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 use codespan_reporting::diagnostic::{Diagnostic, Label};
-use saft_ast::{Expr, Ident, Item, Module, Statement};
+use saft_ast::{Expr, Ident, Item, Statement, Module};
 use saft_common::span::{Span, Spanned};
 
 #[derive(Debug, Clone)]
@@ -9,6 +9,7 @@ pub enum Val {
     Nil,
     Integer(i64),
     Float(f64),
+    Function(Function),
 }
 
 impl Val {
@@ -17,8 +18,20 @@ impl Val {
             Val::Nil => "nil".into(),
             Val::Integer(..) => "integer".into(),
             Val::Float(..) => "float".into(),
+            Val::Function(..) => "function".into(),
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum Function {
+    SaftFunction(SaftFunction),
+}
+
+#[derive(Debug, Clone)]
+pub struct SaftFunction {
+    pub params: Vec<Spanned<String>>,
+    pub body: Rc<Vec<Spanned<Statement>>>,
 }
 
 #[derive(Debug)]
@@ -123,24 +136,143 @@ impl Env {
     }
 }
 
-pub trait Eval {
-    fn eval(&self, env: &mut Env) -> Result<Val, Error>;
+pub fn exec_module(env: &mut Env, module: Module) -> Result<(), Error> {
+    for stmt in module.stmts {
+        exec_statement(env, &stmt)?;
+    }
+    Ok(())
 }
 
-impl Eval for Statement {
-    fn eval(&self, env: &mut Env) -> Result<Val, Error> {
-        match self {
-            Statement::Expr(se) => se.v.eval(env),
-            Statement::Declare { ident, expr } => {
-                let res = expr.v.eval(env)?;
-                env.declare(ident, res)?;
-                Ok(Val::Nil)
+pub fn exec_statement(env: &mut Env, stmt: &Spanned<Statement>) -> Result<(), Error> {
+    match &stmt.v {
+        Statement::Expr(se) => eval_expr(env, se).map(|_| ()),
+        Statement::Declare { ident, expr } => {
+            let res = eval_expr(env, expr)?;
+            env.declare(ident, res)?;
+            Ok(())
+        }
+        Statement::Item(Item::Fn {
+            ident,
+            params,
+            body,
+        }) => {
+            let fun = Val::Function(Function::SaftFunction(SaftFunction {
+                params: params.clone(),
+                body: Rc::new(body.clone()),
+            }));
+            env.declare(ident, fun)?;
+            Ok(())
+        }
+    }
+}
+
+pub fn eval_expr(env: &mut Env, expr: &Spanned<Expr>) -> Result<Val, Error> {
+    match &expr.v {
+        Expr::Var(ident) => env.lookup(ident),
+        Expr::Integer(i) => Ok(Val::Integer(*i)),
+        Expr::Float(f) => Ok(Val::Float(*f)),
+        Expr::Nil => Ok(Val::Nil),
+        Expr::Assign(lhs, rhs) => {
+            if let Expr::Var(ident) = &lhs.v {
+                let res = eval_expr(env, rhs.as_ref())?;
+                env.assign(ident, res.clone())?;
+                Ok(res)
+            } else {
+                Err(Error::Exotic {
+                    message: "Cannot assign to a non-variable".into(),
+                    span: Some(lhs.s.clone()),
+                    note: Some(format!("Found {}", lhs.v.describe())),
+                })
             }
-            Statement::Item(Item::Fn {
-                ident,
-                params,
-                body,
-            }) => todo!(),
+        }
+        Expr::Add(lhs, rhs) => {
+            let lv = eval_expr(env, lhs.as_ref())?;
+            let rv = eval_expr(env, rhs.as_ref())?;
+
+            match (lv, rv) {
+                (Val::Integer(a), Val::Integer(b)) => Ok(Val::Integer(a + b)),
+                _ => Err(Error::Exotic {
+                    message: "Binary operation error".into(),
+                    span: Some(lhs.s.join(&rhs.s)),
+                    note: None,
+                }),
+            }
+        }
+        Expr::Sub(lhs, rhs) => {
+            let lv = eval_expr(env, lhs.as_ref())?;
+            let rv = eval_expr(env, rhs.as_ref())?;
+
+            match (lv, rv) {
+                (Val::Integer(a), Val::Integer(b)) => Ok(Val::Integer(a - b)),
+                _ => Err(Error::Exotic {
+                    message: "Binary operation error".into(),
+                    span: Some(lhs.s.join(&rhs.s)),
+                    note: None,
+                }),
+            }
+        }
+        Expr::Mul(lhs, rhs) => {
+            let lv = eval_expr(env, lhs.as_ref())?;
+            let rv = eval_expr(env, rhs.as_ref())?;
+
+            match (lv, rv) {
+                (Val::Integer(a), Val::Integer(b)) => Ok(Val::Integer(a * b)),
+                _ => Err(Error::Exotic {
+                    message: "Binary operation error".into(),
+                    span: Some(lhs.s.join(&rhs.s)),
+                    note: None,
+                }),
+            }
+        }
+        Expr::Div(lhs, rhs) => {
+            let lv = eval_expr(env, lhs.as_ref())?;
+            let rv = eval_expr(env, rhs.as_ref())?;
+
+            match (lv, rv) {
+                (Val::Integer(a), Val::Integer(b)) => Ok(Val::Integer(a / b)),
+                _ => Err(Error::Exotic {
+                    message: "Binary operation error".into(),
+                    span: Some(lhs.s.join(&rhs.s)),
+                    note: None,
+                }),
+            }
+        }
+        Expr::Pow(lhs, rhs) => {
+            let lv = eval_expr(env, lhs.as_ref())?;
+            let rv = eval_expr(env, rhs.as_ref())?;
+
+            match (lv, rv) {
+                (Val::Integer(a), Val::Integer(b)) => Ok(Val::Integer(a.pow(b as u32))),
+                _ => Err(Error::Exotic {
+                    message: "Binary operation error".into(),
+                    span: Some(lhs.s.join(&rhs.s)),
+                    note: None,
+                }),
+            }
+        }
+        Expr::Grouping(inner) => eval_expr(env, inner.as_ref()),
+        Expr::Call(f, args) => {
+            let fun = eval_expr(env, f.as_ref())?;
+            let mut arg_vals = Vec::new();
+            for arg in args {
+                arg_vals.push(eval_expr(env, arg));
+            }
+
+            env.scoped(|env| {});
+            println!("{:?} {:?}", fun, arg_vals);
+            Ok(Val::Nil)
+        }
+        Expr::Neg(expr) => {
+            let res = eval_expr(env, expr.as_ref())?;
+            match res {
+                Val::Integer(i) => Ok(Val::Integer(-i)),
+                Val::Float(f) => Ok(Val::Float(-f)),
+                _ => Err(Error::Exotic {
+                    message: "Cannot negate value".into(),
+                    span: Some(expr.s.clone()),
+                    note: None,
+                }),
+            }
         }
     }
 }
@@ -164,126 +296,5 @@ fn binary_num_promote(
             ),
             span: lhs.s.join(&rhs.s),
         }),
-    }
-}
-
-impl Eval for Expr {
-    fn eval(&self, env: &mut Env) -> Result<Val, Error> {
-        match self {
-            Expr::Var(ident) => env.lookup(ident),
-            Expr::Integer(i) => Ok(Val::Integer(*i)),
-            Expr::Float(f) => Ok(Val::Float(*f)),
-            Expr::Nil => Ok(Val::Nil),
-            Expr::Assign(lhs, rhs) => {
-                if let Expr::Var(ident) = &lhs.v {
-                    let res = rhs.v.eval(env)?;
-                    env.assign(ident, res.clone())?;
-                    Ok(res)
-                } else {
-                    Err(Error::Exotic {
-                        message: "Cannot assign to a non-variable".into(),
-                        span: Some(lhs.s.clone()),
-                        note: Some(format!("Found {}", lhs.v.describe())),
-                    })
-                }
-            }
-            Expr::Add(lhs, rhs) => {
-                let lv = lhs.v.eval(env)?;
-                let rv = rhs.v.eval(env)?;
-
-                match (lv, rv) {
-                    (Val::Integer(a), Val::Integer(b)) => Ok(Val::Integer(a + b)),
-                    _ => Err(Error::Exotic {
-                        message: "Binary operation error".into(),
-                        span: Some(lhs.s.join(&rhs.s)),
-                        note: None,
-                    }),
-                }
-            }
-            Expr::Sub(lhs, rhs) => {
-                let lv = lhs.v.eval(env)?;
-                let rv = rhs.v.eval(env)?;
-
-                match (lv, rv) {
-                    (Val::Integer(a), Val::Integer(b)) => Ok(Val::Integer(a - b)),
-                    _ => Err(Error::Exotic {
-                        message: "Binary operation error".into(),
-                        span: Some(lhs.s.join(&rhs.s)),
-                        note: None,
-                    }),
-                }
-            }
-            Expr::Mul(lhs, rhs) => {
-                let lv = lhs.v.eval(env)?;
-                let rv = rhs.v.eval(env)?;
-
-                match (lv, rv) {
-                    (Val::Integer(a), Val::Integer(b)) => Ok(Val::Integer(a * b)),
-                    _ => Err(Error::Exotic {
-                        message: "Binary operation error".into(),
-                        span: Some(lhs.s.join(&rhs.s)),
-                        note: None,
-                    }),
-                }
-            }
-            Expr::Div(lhs, rhs) => {
-                let lv = lhs.v.eval(env)?;
-                let rv = rhs.v.eval(env)?;
-
-                match (lv, rv) {
-                    (Val::Integer(a), Val::Integer(b)) => Ok(Val::Integer(a / b)),
-                    _ => Err(Error::Exotic {
-                        message: "Binary operation error".into(),
-                        span: Some(lhs.s.join(&rhs.s)),
-                        note: None,
-                    }),
-                }
-            }
-            Expr::Pow(lhs, rhs) => {
-                let lv = lhs.v.eval(env)?;
-                let rv = rhs.v.eval(env)?;
-
-                match (lv, rv) {
-                    (Val::Integer(a), Val::Integer(b)) => Ok(Val::Integer(a.pow(b as u32))),
-                    _ => Err(Error::Exotic {
-                        message: "Binary operation error".into(),
-                        span: Some(lhs.s.join(&rhs.s)),
-                        note: None,
-                    }),
-                }
-            }
-            Expr::Grouping(inner) => inner.v.eval(env),
-            Expr::Call(f, args) => {
-                let fun = f.v.eval(env)?;
-                let mut arg_vals = Vec::new();
-                for arg in args {
-                    arg_vals.push(arg.v.eval(env)?);
-                }
-                println!("{:?} {:?}", fun, arg_vals);
-                Ok(Val::Nil)
-            }
-            Expr::Neg(expr) => {
-                let res = expr.v.eval(env)?;
-                match res {
-                    Val::Integer(i) => Ok(Val::Integer(-i)),
-                    Val::Float(f) => Ok(Val::Float(-f)),
-                    _ => Err(Error::Exotic {
-                        message: "Cannot negate value".into(),
-                        span: Some(expr.s.clone()),
-                        note: None,
-                    }),
-                }
-            }
-        }
-    }
-}
-
-impl Eval for Module {
-    fn eval(&self, env: &mut Env) -> Result<Val, Error> {
-        for stmt in self.stmts.iter() {
-            stmt.v.eval(env)?;
-        }
-
-        Ok(Val::Nil)
     }
 }

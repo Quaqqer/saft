@@ -13,7 +13,7 @@ use codespan_reporting::{
 };
 use platform_dirs::AppDirs;
 use rustyline::{error::ReadlineError, DefaultEditor};
-use saft_eval::{Env, Eval};
+use saft_eval::{eval_expr, exec_module, exec_statement, Env};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -87,15 +87,15 @@ fn interpret_stmt(env: &mut Env, s: &str) {
     let config = codespan_reporting::term::Config::default();
 
     match saft_parser::Parser::new(s).parse_single_statment() {
-        Ok(spanned_stmt) => match spanned_stmt.v {
-            saft_ast::Statement::Expr(se) => match se.v.eval(env) {
+        Ok(spanned_stmt) => match &spanned_stmt.v {
+            saft_ast::Statement::Expr(se) => match eval_expr(env, &se) {
                 Ok(vref) => println!("{:?}", vref),
                 Err(err) => {
                     term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap()
                 }
             },
 
-            s => match s.eval(env) {
+            _ => match exec_statement(env, &spanned_stmt) {
                 Ok(..) => {}
                 Err(err) => {
                     term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap()
@@ -114,7 +114,7 @@ fn interpret_module(env: &mut Env, fname: &str, s: &str) {
     let config = codespan_reporting::term::Config::default();
     match saft_parser::Parser::new(s).parse_file() {
         Ok(module) => {
-            match module.eval(env) {
+            match exec_module(env, module) {
                 Ok(..) => {}
                 Err(err) => {
                     term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap()

@@ -257,13 +257,20 @@ impl<'a> Parser<'a> {
         self.eat(Token::RParen)?;
 
         self.eat(Token::LBrace)?;
+
+        let mut body = Vec::new();
+
+        while self.lexer.peek().v != Token::RBrace {
+            body.push(self.parse_statement()?);
+        }
+
         let end = self.eat(Token::RBrace)?;
 
         Ok(Spanned::new(
             Statement::Item(Item::Fn {
                 ident,
                 params,
-                body: vec![],
+                body,
             }),
             start.join(&end),
         ))
