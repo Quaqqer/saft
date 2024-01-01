@@ -1,7 +1,7 @@
 use std::{collections::HashMap, rc::Rc};
 
 use codespan_reporting::diagnostic::{Diagnostic, Label};
-use saft_ast::{Expr, Ident, Item, Statement, Module};
+use saft_ast::{Expr, Ident, Item, Module, Statement};
 use saft_common::span::{Span, Spanned};
 
 #[derive(Debug, Clone)]
@@ -49,6 +49,9 @@ pub enum Error {
         message: String,
         span: Span,
     },
+    Return {
+        v: Val,
+    },
 }
 
 impl Error {
@@ -75,6 +78,7 @@ impl Error {
             Error::TypeError { message, span } => Diagnostic::error()
                 .with_message(format!("TypeError: {}", message))
                 .with_labels(vec![Label::primary(file_id, span.r.clone())]),
+            Error::Return { .. } => panic!("No diagnostic for returns"),
         }
     }
 }
@@ -254,13 +258,37 @@ pub fn eval_expr(env: &mut Env, expr: &Spanned<Expr>) -> Result<Val, Error> {
         Expr::Call(f, args) => {
             let fun = eval_expr(env, f.as_ref())?;
             let mut arg_vals = Vec::new();
+
             for arg in args {
-                arg_vals.push(eval_expr(env, arg));
+                arg_vals.push(eval_expr(env, arg)?);
             }
 
-            env.scoped(|env| {});
-            println!("{:?} {:?}", fun, arg_vals);
-            Ok(Val::Nil)
+            match fun {
+                Val::Function(Function::SaftFunction(SaftFunction { params, body })) => {
+                    let res: Result<Val, Error> = env.scoped(|env| {
+                        for (arg_name, arg) in params.iter().zip(arg_vals.iter()) {
+                            env.declare(arg_name, arg.clone())?;
+                        }
+
+                        for statement in body.iter() {
+                            exec_statement(env, statement)?;
+                        }
+
+                        Ok(Val::Nil)
+                    });
+
+                    match res {
+                        Ok(v) => Ok(v),
+                        Err(Error::Return { v }) => Ok(v),
+                        Err(e) => Err(e),
+                    }
+                }
+                _ => Err(Error::Exotic {
+                    message: "Cannot call non-function".into(),
+                    span: Some(expr.s.clone()),
+                    note: Some(format!("Got type {}", fun.type_name())),
+                }),
+            }
         }
         Expr::Neg(expr) => {
             let res = eval_expr(env, expr.as_ref())?;
