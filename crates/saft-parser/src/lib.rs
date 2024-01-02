@@ -52,6 +52,7 @@ impl<'a> Parser<'a> {
 
         while self.lexer.peek().v != Token::Eof {
             stmts.push(self.parse_statement()?);
+            self.eat(Token::Semicolon)?;
         }
 
         Ok(Module { stmts })
@@ -92,8 +93,19 @@ impl<'a> Parser<'a> {
 
     pub fn parse_single_statment(&mut self) -> Result<Spanned<ast::Statement>, Error> {
         let s = self.parse_statement()?;
-        self.eat(Token::Eof)?;
-        Ok(s)
+        let next = self.lexer.next();
+
+        match &next.v {
+            Token::Eof => Ok(s),
+            Token::Semicolon => {
+                self.eat(Token::Eof)?;
+                Ok(s)
+            }
+            _ => Err(Error::UnexpectedToken {
+                got: next,
+                expected: "End of file or ';'".into(),
+            }),
+        }
     }
 
     pub fn parse_statement(&mut self) -> Result<Spanned<ast::Statement>, Error> {

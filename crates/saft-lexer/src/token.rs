@@ -11,6 +11,7 @@ pub enum Token {
     LBrace,
     RBrace,
     Comma,
+    Semicolon,
 
     Identifier(String),
     Float(f64),
@@ -51,6 +52,7 @@ impl Token {
             Slash => "'/'",
             Caret => "'^'",
             Return => "'return'",
+            Semicolon => "';'",
         }
     }
 }

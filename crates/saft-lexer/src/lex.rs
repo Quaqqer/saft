@@ -136,6 +136,7 @@ impl<'a> Lexer<'a> {
                 '{' => eat_token!(cur, T::LBrace),
                 '}' => eat_token!(cur, T::RBrace),
                 ',' => eat_token!(cur, T::Comma),
+                ';' => eat_token!(cur, T::Semicolon),
 
                 '=' => eat_token!(cur, T::Equal),
                 '+' => eat_token!(cur, T::Plus),
