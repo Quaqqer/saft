@@ -99,19 +99,20 @@ impl<'a> Parser<'a> {
     pub fn parse_statement(&mut self) -> Result<Spanned<ast::Statement>, Error> {
         let st = self.lexer.peek();
         match st.v {
-            Token::Identifier(ident) if self.lexer.peek_n(2).v == Token::ColonEqual => {
-                let ident_t = self.lexer.next();
-                let _colon_equals = self.lexer.next();
+            Token::Identifier(_) if self.lexer.peek_n(2).v == Token::ColonEqual => {
+                let ident = self.eat_ident().expect("Already peeked");
+                self.eat(Token::ColonEqual).expect("Already peeked");
                 let expr = self.parse_expr()?;
-                let expr_s = expr.s.clone();
 
-                Ok(Spanned::new(
-                    Statement::Declare {
-                        ident: Spanned::new(ident, ident_t.s.clone()),
-                        expr,
-                    },
-                    ident_t.s.join(&expr_s),
-                ))
+                let s = ident.s.join(&expr.s);
+                Ok(Spanned::new(Statement::Declare { ident, expr }, s))
+            }
+
+            Token::Return => {
+                let start = self.eat(Token::Return)?;
+                let expr = self.parse_expr()?;
+                let s = start.join(&expr.s);
+                Ok(Spanned::new(Statement::Return(expr), s))
             }
 
             Token::LParen

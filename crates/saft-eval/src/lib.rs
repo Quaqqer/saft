@@ -167,6 +167,10 @@ pub fn exec_statement(env: &mut Env, stmt: &Spanned<Statement>) -> Result<(), Er
             env.declare(ident, fun)?;
             Ok(())
         }
+        Statement::Return(expr) => {
+            let v = eval_expr(env, expr)?;
+            Err(Error::Return { v })
+        }
     }
 }
 

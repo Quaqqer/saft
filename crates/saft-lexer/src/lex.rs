@@ -153,6 +153,7 @@ impl<'a> Lexer<'a> {
                     match cur.str() {
                         "nil" => mktoken!(cur, T::Nil),
                         "fn" => mktoken!(cur, T::Fn),
+                        "return" => mktoken!(cur, T::Return),
                         s => mktoken!(cur, T::Identifier(s.into())),
                     }
                 }

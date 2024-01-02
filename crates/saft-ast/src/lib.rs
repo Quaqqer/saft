@@ -14,6 +14,7 @@ pub enum Statement {
         ident: Spanned<Ident>,
         expr: Spanned<Expr>,
     },
+    Return(Spanned<Expr>),
     Item(Item),
 }
 
@@ -65,6 +66,7 @@ impl Statement {
             Statement::Item(item) => match item {
                 Item::Fn { .. } => "function declaration",
             },
+            Statement::Return(_) => "return",
         }
     }
 }

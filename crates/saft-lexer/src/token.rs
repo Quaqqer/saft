@@ -4,6 +4,7 @@ pub enum Token {
     Eof,
 
     Fn,
+    Return,
 
     LParen,
     RParen,
@@ -49,6 +50,7 @@ impl Token {
             Star => "'*'",
             Slash => "'/'",
             Caret => "'^'",
+            Return => "'return'",
         }
     }
 }
