@@ -162,6 +162,7 @@ impl Env {
         self.add_native::<sin>();
         self.add_native::<cos>();
         self.add_native::<time>();
+        self.add_native::<print>();
     }
 }
 
@@ -200,7 +201,7 @@ pub fn exec_statement(env: &mut Env, stmt: &Spanned<Statement>) -> Result<(), Er
 }
 
 pub fn eval_expr(env: &mut Env, expr: &Spanned<Expr>) -> Result<Val, Error> {
-    let s= expr.s.clone();
+    let s = expr.s.clone();
 
     match &expr.v {
         Expr::Var(ident) => env.lookup(ident),
@@ -375,6 +376,12 @@ impl From<i64> for Val {
     }
 }
 
+impl From<()> for Val {
+    fn from(value: ()) -> Self {
+        Val::Nil
+    }
+}
+
 impl Cast<f64> for Val {
     fn cast(&self) -> Result<f64, Error> {
         match self {
@@ -398,6 +405,12 @@ impl Cast<i64> for Val {
                 note: None,
             }),
         }
+    }
+}
+
+impl Cast<Val> for Val {
+    fn cast(&self) -> Result<Val, Error> {
+        Ok(self.clone())
     }
 }
 
@@ -427,4 +440,9 @@ fn time() -> f64 {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs_f64()
+}
+
+#[native_function]
+fn print(val: Val) {
+    println!("{:?}", val);
 }

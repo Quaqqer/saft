@@ -391,6 +391,7 @@ name = "saft-eval"
 version = "0.1.0"
 dependencies = [
  "codespan-reporting",
+ "quote",
  "saft-ast",
  "saft-common",
  "saft-macro",
