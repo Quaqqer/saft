@@ -3,6 +3,7 @@ use std::{collections::HashMap, rc::Rc};
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use saft_ast::{Expr, Ident, Item, Module, Statement};
 use saft_common::span::{Span, Spanned};
+use saft_macro::native_function;
 
 #[derive(Debug, Clone)]
 pub enum Val {
@@ -10,6 +11,7 @@ pub enum Val {
     Integer(i64),
     Float(f64),
     Function(Function),
+    NativeFunction(NativeFuncData),
 }
 
 impl Val {
@@ -19,6 +21,7 @@ impl Val {
             Val::Integer(..) => "integer".into(),
             Val::Float(..) => "float".into(),
             Val::Function(..) => "function".into(),
+            Val::NativeFunction(..) => "native function".into(),
         }
     }
 }
@@ -89,9 +92,11 @@ pub struct Env {
 
 impl Env {
     pub fn new() -> Self {
-        Self {
+        let mut env = Self {
             scopes: vec![HashMap::new()],
-        }
+        };
+        env.add_natives();
+        env
     }
 
     pub fn scoped<F, T>(&mut self, f: F) -> T
@@ -122,6 +127,11 @@ impl Env {
         Ok(())
     }
 
+    fn declare_unspanned(&mut self, ident: &Ident, v: Val) -> Result<(), Error> {
+        self.scopes.last_mut().unwrap().insert(ident.clone(), v);
+        Ok(())
+    }
+
     fn assign(&mut self, sident: &Spanned<Ident>, v: Val) -> Result<(), Error> {
         for scope in self.scopes.iter_mut().rev() {
             match scope.get_mut(&sident.v) {
@@ -137,6 +147,21 @@ impl Env {
             message: "Could not resolve variable when assigning".into(),
             span: sident.s.clone(),
         })
+    }
+
+    fn add_native<F>(&mut self)
+    where
+        F: NativeFunc,
+    {
+        let data = F::data();
+        self.declare_unspanned(&data.name.to_string(), Val::NativeFunction(data))
+            .unwrap()
+    }
+
+    fn add_natives(&mut self) {
+        self.add_native::<sin>();
+        self.add_native::<cos>();
+        self.add_native::<time>();
     }
 }
 
@@ -289,6 +314,7 @@ pub fn eval_expr(env: &mut Env, expr: &Spanned<Expr>) -> Result<Val, Error> {
                         Err(e) => Err(e),
                     }
                 }
+                Val::NativeFunction(NativeFuncData { f, .. }) => f(arg_vals),
                 _ => Err(Error::Exotic {
                     message: "Cannot call non-function".into(),
                     span: Some(s),
@@ -331,4 +357,74 @@ fn binary_num_promote(
             span: lhs.s.join(&rhs.s),
         }),
     }
+}
+
+trait Cast<T> {
+    fn cast(&self) -> Result<T, Error>;
+}
+
+impl From<f64> for Val {
+    fn from(value: f64) -> Self {
+        Val::Float(value)
+    }
+}
+
+impl From<i64> for Val {
+    fn from(value: i64) -> Self {
+        Val::Integer(value)
+    }
+}
+
+impl Cast<f64> for Val {
+    fn cast(&self) -> Result<f64, Error> {
+        match self {
+            Val::Float(f) => Ok(*f),
+            _ => Err(Error::Exotic {
+                message: "Cannot cast".into(),
+                span: None,
+                note: None,
+            }),
+        }
+    }
+}
+
+impl Cast<i64> for Val {
+    fn cast(&self) -> Result<i64, Error> {
+        match self {
+            Val::Integer(i) => Ok(*i),
+            _ => Err(Error::Exotic {
+                message: "Cannot cast".into(),
+                span: None,
+                note: None,
+            }),
+        }
+    }
+}
+
+pub trait NativeFunc: std::fmt::Debug {
+    fn data() -> NativeFuncData;
+}
+
+#[derive(Clone, Debug)]
+pub struct NativeFuncData {
+    name: &'static str,
+    f: fn(Vec<Val>) -> Result<Val, Error>,
+}
+
+#[native_function]
+fn sin(arg: f64) -> f64 {
+    arg.sin()
+}
+
+#[native_function]
+fn cos(arg: f64) -> f64 {
+    arg.cos()
+}
+
+#[native_function]
+fn time() -> f64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs_f64()
 }
