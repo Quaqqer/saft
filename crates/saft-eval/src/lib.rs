@@ -175,6 +175,8 @@ pub fn exec_statement(env: &mut Env, stmt: &Spanned<Statement>) -> Result<(), Er
 }
 
 pub fn eval_expr(env: &mut Env, expr: &Spanned<Expr>) -> Result<Val, Error> {
+    let s= expr.s.clone();
+
     match &expr.v {
         Expr::Var(ident) => env.lookup(ident),
         Expr::Integer(i) => Ok(Val::Integer(*i)),
@@ -188,7 +190,7 @@ pub fn eval_expr(env: &mut Env, expr: &Spanned<Expr>) -> Result<Val, Error> {
             } else {
                 Err(Error::Exotic {
                     message: "Cannot assign to a non-variable".into(),
-                    span: Some(lhs.s.clone()),
+                    span: Some(s),
                     note: Some(format!("Found {}", lhs.v.describe())),
                 })
             }
@@ -201,7 +203,7 @@ pub fn eval_expr(env: &mut Env, expr: &Spanned<Expr>) -> Result<Val, Error> {
                 (Val::Integer(a), Val::Integer(b)) => Ok(Val::Integer(a + b)),
                 _ => Err(Error::Exotic {
                     message: "Binary operation error".into(),
-                    span: Some(lhs.s.join(&rhs.s)),
+                    span: Some(s),
                     note: None,
                 }),
             }
@@ -214,7 +216,7 @@ pub fn eval_expr(env: &mut Env, expr: &Spanned<Expr>) -> Result<Val, Error> {
                 (Val::Integer(a), Val::Integer(b)) => Ok(Val::Integer(a - b)),
                 _ => Err(Error::Exotic {
                     message: "Binary operation error".into(),
-                    span: Some(lhs.s.join(&rhs.s)),
+                    span: Some(s),
                     note: None,
                 }),
             }
@@ -227,7 +229,7 @@ pub fn eval_expr(env: &mut Env, expr: &Spanned<Expr>) -> Result<Val, Error> {
                 (Val::Integer(a), Val::Integer(b)) => Ok(Val::Integer(a * b)),
                 _ => Err(Error::Exotic {
                     message: "Binary operation error".into(),
-                    span: Some(lhs.s.join(&rhs.s)),
+                    span: Some(s),
                     note: None,
                 }),
             }
@@ -240,7 +242,7 @@ pub fn eval_expr(env: &mut Env, expr: &Spanned<Expr>) -> Result<Val, Error> {
                 (Val::Integer(a), Val::Integer(b)) => Ok(Val::Integer(a / b)),
                 _ => Err(Error::Exotic {
                     message: "Binary operation error".into(),
-                    span: Some(lhs.s.join(&rhs.s)),
+                    span: Some(s),
                     note: None,
                 }),
             }
@@ -253,7 +255,7 @@ pub fn eval_expr(env: &mut Env, expr: &Spanned<Expr>) -> Result<Val, Error> {
                 (Val::Integer(a), Val::Integer(b)) => Ok(Val::Integer(a.pow(b as u32))),
                 _ => Err(Error::Exotic {
                     message: "Binary operation error".into(),
-                    span: Some(lhs.s.join(&rhs.s)),
+                    span: Some(s),
                     note: None,
                 }),
             }
@@ -289,7 +291,7 @@ pub fn eval_expr(env: &mut Env, expr: &Spanned<Expr>) -> Result<Val, Error> {
                 }
                 _ => Err(Error::Exotic {
                     message: "Cannot call non-function".into(),
-                    span: Some(expr.s.clone()),
+                    span: Some(s),
                     note: Some(format!("Got type {}", fun.type_name())),
                 }),
             }
@@ -301,7 +303,7 @@ pub fn eval_expr(env: &mut Env, expr: &Spanned<Expr>) -> Result<Val, Error> {
                 Val::Float(f) => Ok(Val::Float(-f)),
                 _ => Err(Error::Exotic {
                     message: "Cannot negate value".into(),
-                    span: Some(expr.s.clone()),
+                    span: Some(s),
                     note: None,
                 }),
             }
