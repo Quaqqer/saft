@@ -67,7 +67,6 @@ macro_rules! type_error {
 macro_rules! unresolved_error {
     ($var:expr, $span:expr) => {
         Exception::UnresolvedVariable {
-            message: "Unresolved variable".into(),
             span: $span.clone(),
             note: format!(
                 "Variable '{}' could not be found in the current scope",
@@ -254,7 +253,7 @@ impl<IO: InterpreterIO> Interpreter<IO> {
                         }
                     }
                     Value::Function(Function::NativeFunction(NativeFuncData { f, .. })) => {
-                        f(arg_vals)?
+                        f(&s, arg_vals)?
                     }
                     _ => {
                         return Err(exotic!(
@@ -328,13 +327,17 @@ pub enum Exception {
         note: Option<String>,
     },
     UnresolvedVariable {
-        message: String,
         span: Span,
         note: String,
     },
     TypeError {
         span: Span,
         note: String,
+    },
+    ArgMismatch {
+        span: Span,
+        expected: usize,
+        got: usize,
     },
 }
 
@@ -362,12 +365,8 @@ impl Exception {
                 }
                 diag
             }
-            Exception::UnresolvedVariable {
-                message,
-                span,
-                note,
-            } => Diagnostic::error()
-                .with_message(message)
+            Exception::UnresolvedVariable { span, note } => Diagnostic::error()
+                .with_message("Unresolved variable")
                 .with_labels(vec![
                     Label::primary(file_id, span.r.clone()).with_message(note)
                 ]),
@@ -376,6 +375,15 @@ impl Exception {
                 .with_labels(vec![
                     Label::primary(file_id, span.r.clone()).with_message(note)
                 ]),
+            Exception::ArgMismatch {
+                span,
+                expected,
+                got,
+            } => Diagnostic::error()
+                .with_message("Argument mismatch")
+                .with_labels(vec![Label::primary(file_id, span.r.clone()).with_message(
+                    format!("Expected {} arguments, but got {}", expected, got),
+                )]),
         }
     }
 }

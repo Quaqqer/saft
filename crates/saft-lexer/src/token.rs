@@ -37,7 +37,7 @@ impl Token {
             Unknown => "unknown token".into(),
             Eof => "end of file".into(),
             Identifier(i) => format!("identifier '{}'", i),
-            Float(f) =>  format!("float '{}'", f),
+            Float(f) => format!("float '{}'", f),
             Integer(i) => format!("integer '{}'", i),
             ColonEqual => "':='".into(),
             Nil => "'nil'".into(),

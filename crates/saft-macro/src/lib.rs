@@ -30,10 +30,16 @@ pub fn native_function(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
         impl NativeFunc for #name {
             fn data() -> NativeFuncData {
-                fn #name(args: Vec<Spanned<Value>>) -> Result<Value, ControlFlow> {
+                fn #name(span: &Span, args: Vec<Spanned<Value>>) -> Result<Value, ControlFlow> {
                     #fn_
 
-                    assert!(args.len() == #n_params);
+                    if args.len() != #n_params {
+                        return Err(Exception::ArgMismatch {
+                            span: span.clone(),
+                            expected: #n_params,
+                            got: args.len(),
+                        }.into())
+                    }
 
                     let res: NativeRes = #inner(#(Cast::<#arg_tys>::cast(args[#arg_i].clone())?),*).into();
                     res.0

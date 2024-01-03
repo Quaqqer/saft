@@ -5,7 +5,7 @@ use crate::{
 use std::{borrow::Borrow, rc::Rc};
 
 use saft_ast::Statement;
-use saft_common::span::Spanned;
+use saft_common::span::{Span, Spanned};
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -158,7 +158,7 @@ pub struct SaftFunction {
 #[derive(Clone, Debug)]
 pub struct NativeFuncData {
     pub name: &'static str,
-    pub f: fn(Vec<Spanned<Value>>) -> Result<Value, ControlFlow>,
+    pub f: fn(&Span, Vec<Spanned<Value>>) -> Result<Value, ControlFlow>,
 }
 
 impl From<f64> for Value {
