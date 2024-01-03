@@ -5,7 +5,7 @@ use saft_macro::native_function;
 
 use crate::interpreter::Env;
 use crate::interpreter::Exception;
-use crate::value::{Cast, Function, NativeFunc, NativeFuncData, NativeRes, Num, Value};
+use crate::value::{Cast, CastFrom, Function, NativeFunc, NativeFuncData, NativeRes, Num, Value};
 
 #[native_function]
 fn sin(arg: Num) -> f64 {
@@ -39,9 +39,14 @@ fn repr(val: Value) -> String {
 }
 
 #[native_function]
-fn read(fname: Spanned<String>) -> Result<String, Exception> {
-    std::fs::read_to_string(&fname.v)
-        .map_err(|_| exotic!(format!("Could not open file '{}'", &fname.v)))
+fn read(fname: String) -> Result<String, Exception> {
+    std::fs::read_to_string(&fname)
+        .map_err(|_| exotic!(format!("Could not open file '{}'", &fname)))
+}
+
+#[native_function]
+fn split(string: String, delim: String) -> Vec<String> {
+    string.split(&delim).map(|s| s.into()).collect()
 }
 
 pub fn add_natives(env: &mut Env) {
@@ -51,6 +56,7 @@ pub fn add_natives(env: &mut Env) {
     add_native::<print>(env);
     add_native::<repr>(env);
     add_native::<read>(env);
+    add_native::<split>(env);
 }
 
 fn add_native<N: NativeFunc>(env: &mut Env) {

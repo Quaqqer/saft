@@ -13,6 +13,7 @@ pub enum Value {
     Num(Num),
     Function(Function),
     String(String),
+    Vec(Vec<Value>),
 }
 
 impl Value {
@@ -23,6 +24,24 @@ impl Value {
             Value::Function(Function::SaftFunction(..)) => "<function>".into(),
             Value::Function(Function::NativeFunction(..)) => "<builtin function>".into(),
             Value::String(s) => format!("\"{}\"", s),
+            Value::Vec(vals) => {
+                let mut buf = String::new();
+
+                use std::fmt::Write;
+
+                write!(&mut buf, "[").unwrap();
+                let mut first = true;
+                for val in vals.iter() {
+                    if !first {
+                        write!(&mut buf, ", ").unwrap()
+                    };
+                    first = false;
+                    write!(&mut buf, "{}", val.repr()).unwrap();
+                }
+                write!(&mut buf, "]").unwrap();
+
+                buf
+            }
         }
     }
 }
@@ -41,6 +60,7 @@ pub enum ValueType {
     Float,
     Function,
     String,
+    Vec,
 }
 
 impl ValueType {
@@ -52,6 +72,7 @@ impl ValueType {
             ValueType::Float => "float",
             ValueType::Function => "function",
             ValueType::String => "string",
+            ValueType::Vec => "vec",
         }
     }
 }
@@ -163,6 +184,7 @@ impl Value {
             V::Num(Num::Float(_)) => T::Float,
             V::Function(..) => T::Function,
             V::String(..) => T::String,
+            V::Vec(..) => T::Vec,
         }
     }
 }
@@ -215,6 +237,16 @@ impl From<String> for Value {
     }
 }
 
+impl<T> From<Vec<T>> for Value
+where
+    Value: From<T>,
+    T: Clone,
+{
+    fn from(value: Vec<T>) -> Self {
+        Value::Vec(value.iter().map(|v| v.clone().into()).collect())
+    }
+}
+
 pub struct NativeRes(pub Result<Value, ControlFlow>);
 
 impl<T: Into<Value>> From<T> for NativeRes {
@@ -229,61 +261,129 @@ impl<V: Into<Value>, C: Into<ControlFlow>> From<Result<V, C>> for NativeRes {
     }
 }
 
+impl From<Spanned<Value>> for Value {
+    fn from(value: Spanned<Value>) -> Self {
+        value.v
+    }
+}
+
 pub trait Cast<T> {
-    fn cast(self) -> Result<T, ControlFlow>;
+    fn cast(self) -> Option<T>;
 }
 
-macro_rules! cast_t {
-    ($match:expr, $ty:ty) => {
-        impl Cast<$ty> for Spanned<Value> {
-            fn cast(self) -> Result<$ty, ControlFlow> {
-                $match(self)
-            }
+impl<T, U> Cast<U> for T
+where
+    U: CastFrom<T>,
+{
+    fn cast(self) -> Option<U> {
+        CastFrom::cast_from(self)
+    }
+}
+
+pub trait CastFrom<T>
+where
+    Self: Sized,
+{
+    fn ty_name() -> String;
+
+    fn cast_from(value: T) -> Option<Self>;
+}
+
+impl CastFrom<Value> for Value {
+    fn ty_name() -> String {
+        "value".into()
+    }
+
+    fn cast_from(value: Value) -> Option<Self> {
+        Some(value)
+    }
+}
+
+impl CastFrom<Value> for i64 {
+    fn ty_name() -> String {
+        "integer".into()
+    }
+
+    fn cast_from(value: Value) -> Option<Self> {
+        match value {
+            Value::Num(Num::Int(i)) => Some(i),
+            _ => None,
         }
+    }
+}
 
-        impl Cast<Spanned<$ty>> for Spanned<Value> {
-            fn cast(self) -> Result<Spanned<$ty>, ControlFlow> {
-                Ok(self.s.clone().spanned($match(self)?))
-            }
+impl CastFrom<Value> for f64 {
+    fn ty_name() -> String {
+        "float".into()
+    }
+
+    fn cast_from(value: Value) -> Option<Self> {
+        match value {
+            Value::Num(Num::Float(f)) => Some(f),
+            _ => None,
         }
-    };
+    }
 }
 
-cast_t! {
-    |sv: Spanned<Value>| Ok::<_, ControlFlow>(sv.v),
-    Value
+impl CastFrom<Value> for bool {
+    fn ty_name() -> String {
+        "bool".into()
+    }
+
+    fn cast_from(value: Value) -> Option<Self> {
+        match value {
+            Value::Num(Num::Bool(b)) => Some(b),
+            _ => None,
+        }
+    }
 }
 
-cast_t! {
-    |sv: Spanned<Value>| match sv.v {
-        Value::String(s) => Ok::<_, ControlFlow>(s),
-        _ => Err(cast_error!(sv, "string")),
-    },
-    String
+impl CastFrom<Value> for Num {
+    fn ty_name() -> String {
+        "numeric".into()
+    }
+
+    fn cast_from(value: Value) -> Option<Self> {
+        match value {
+            Value::Num(num) => Some(num.clone()),
+            _ => None,
+        }
+    }
 }
 
-cast_t! {
-    |sv: Spanned<Value>| match sv.v {
-        Value::Num(n) => Ok::<_, ControlFlow>(n),
-        _ => Err(cast_error!(sv, "numeric")),
-    },
-    Num
+impl CastFrom<Value> for String {
+    fn ty_name() -> String {
+        "string".into()
+    }
+
+    fn cast_from(value: Value) -> Option<Self> {
+        match value {
+            Value::String(s) => Some(s.clone()),
+            _ => None,
+        }
+    }
 }
 
-cast_t! {
-    |sv: Spanned<Value>| match sv.v {
-        Value::Num(Num::Int(i)) => Ok::<_, ControlFlow>(i),
-        _ => Err(cast_error!(sv, "integer")),
-    },
-    i64
-}
+impl<T> CastFrom<Value> for Vec<T>
+where
+    T: CastFrom<Value>,
+{
+    fn ty_name() -> String {
+        format!("vec[{}]", T::ty_name())
+    }
 
-cast_t! {
-    |sv: Spanned<Value>| match sv.v {
-        Value::Num(Num::Float(f)) => Ok::<_, ControlFlow>(f),
-        _ => Err(cast_error!(sv, "float")),
-    },
-    f64
+    fn cast_from(value: Value) -> Option<Self> {
+        match value {
+            Value::Vec(vals) => {
+                let mut cast_vals = Vec::new();
+                for val in vals.iter() {
+                    cast_vals.push(val.clone().cast()?);
+                }
+                Some(cast_vals)
+            }
+            _ => None,
+        }
+    }
 }
 
 pub trait NativeFunc {

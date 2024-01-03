@@ -55,6 +55,17 @@ macro_rules! cast_error {
 
 #[macro_export]
 macro_rules! type_error {
+    ($msg:expr, $s:expr) => {
+        Exception::TypeError {
+            span: $s.clone(),
+            note: $msg,
+        }
+        .into()
+    };
+}
+
+#[macro_export]
+macro_rules! type_expected_error {
     ($got:expr, $expected:expr) => {
         Exception::TypeError {
             span: $got.s,
@@ -196,34 +207,95 @@ impl<IO: InterpreterIO> Interpreter<IO> {
                 }
             }
             Expr::Add(lhs, rhs) => {
-                let lhs: Num = self.eval_expr(lhs.as_ref())?.cast()?;
-                let rhs: Num = self.eval_expr(rhs.as_ref())?.cast()?;
+                let lhs = self.eval_expr(lhs.as_ref())?;
+                let rhs = self.eval_expr(rhs.as_ref())?;
 
-                Value::Num(lhs.add(rhs))
+                match (&lhs.v, &rhs.v) {
+                    (Value::Num(a), Value::Num(b)) => Value::Num(a.add(b)),
+                    (Value::String(a), Value::String(b)) => Value::String(a.to_owned() + b),
+                    _ => {
+                        return Err(type_error!(
+                            format!(
+                                "Cannot add values of types {} and {}",
+                                lhs.v.ty().name(),
+                                rhs.v.ty().name()
+                            ),
+                            s
+                        ))
+                    }
+                }
             }
             Expr::Sub(lhs, rhs) => {
-                let lhs: Num = self.eval_expr(lhs.as_ref())?.cast()?;
-                let rhs: Num = self.eval_expr(rhs.as_ref())?.cast()?;
+                let lhs = self.eval_expr(lhs.as_ref())?;
+                let rhs = self.eval_expr(rhs.as_ref())?;
 
-                Value::Num(lhs.sub(rhs))
+                match (&lhs.v, &rhs.v) {
+                    (Value::Num(a), Value::Num(b)) => Value::Num(a.sub(b)),
+                    _ => {
+                        return Err(type_error!(
+                            format!(
+                                "Cannot subtract values of types {} and {}",
+                                lhs.v.ty().name(),
+                                rhs.v.ty().name()
+                            ),
+                            s
+                        ))
+                    }
+                }
             }
             Expr::Mul(lhs, rhs) => {
-                let lhs: Num = self.eval_expr(lhs.as_ref())?.cast()?;
-                let rhs: Num = self.eval_expr(rhs.as_ref())?.cast()?;
+                let lhs = self.eval_expr(lhs.as_ref())?;
+                let rhs = self.eval_expr(rhs.as_ref())?;
 
-                Value::Num(lhs.mul(rhs))
+                match (&lhs.v, &rhs.v) {
+                    (Value::Num(a), Value::Num(b)) => Value::Num(a.mul(b)),
+                    _ => {
+                        return Err(type_error!(
+                            format!(
+                                "Cannot multiply values of types {} and {}",
+                                lhs.v.ty().name(),
+                                rhs.v.ty().name()
+                            ),
+                            s
+                        ))
+                    }
+                }
             }
             Expr::Div(lhs, rhs) => {
-                let lhs: Num = self.eval_expr(lhs.as_ref())?.cast()?;
-                let rhs: Num = self.eval_expr(rhs.as_ref())?.cast()?;
+                let lhs = self.eval_expr(lhs.as_ref())?;
+                let rhs = self.eval_expr(rhs.as_ref())?;
 
-                Value::Num(lhs.div(rhs))
+                match (&lhs.v, &rhs.v) {
+                    (Value::Num(a), Value::Num(b)) => Value::Num(a.div(b)),
+                    _ => {
+                        return Err(type_error!(
+                            format!(
+                                "Cannot divide values of types {} and {}",
+                                lhs.v.ty().name(),
+                                rhs.v.ty().name()
+                            ),
+                            s
+                        ))
+                    }
+                }
             }
             Expr::Pow(lhs, rhs) => {
-                let lhs: Num = self.eval_expr(lhs.as_ref())?.cast()?;
-                let rhs: Num = self.eval_expr(rhs.as_ref())?.cast()?;
+                let lhs = self.eval_expr(lhs.as_ref())?;
+                let rhs = self.eval_expr(rhs.as_ref())?;
 
-                Value::Num(lhs.pow(rhs))
+                match (&lhs.v, &rhs.v) {
+                    (Value::Num(a), Value::Num(b)) => Value::Num(a.pow(b)),
+                    _ => {
+                        return Err(type_error!(
+                            format!(
+                                "Cannot divide values of types {} and {}",
+                                lhs.v.ty().name(),
+                                rhs.v.ty().name()
+                            ),
+                            s
+                        ))
+                    }
+                }
             }
             Expr::Grouping(inner) => self.eval_expr(inner.as_ref())?.v,
             Expr::Call(f, args) => {
@@ -273,7 +345,14 @@ impl<IO: InterpreterIO> Interpreter<IO> {
                     }
                 }
             }
-            Expr::Neg(expr) => Value::Num(Cast::<Num>::cast(self.eval_expr(expr.as_ref())?)?.neg()),
+            Expr::Neg(expr) => {
+                let v = self.eval_expr(expr.as_ref())?;
+                Value::Num(
+                    Cast::<Num>::cast(v.v.clone())
+                        .ok_or::<Exception>(cast_error!(v, "numeric"))?
+                        .neg(),
+                )
+            }
             Expr::Index(expr, index) => {
                 let expr = self.eval_expr(expr.as_ref())?;
                 let index = self.eval_expr(index.as_ref())?;
@@ -302,6 +381,29 @@ impl<IO: InterpreterIO> Interpreter<IO> {
                             .into())
                         }
                     },
+                    Value::Vec(vals) => match index.v {
+                        Value::Num(Num::Int(i)) => match vals.get(i as usize..i as usize + 1) {
+                            Some(v) => v[0].clone(),
+                            None => {
+                                return Err(exotic!(
+                                    "Indexed out of bounds",
+                                    s,
+                                    format!(
+                                        "Got index {} and the size of the string is {}",
+                                        i,
+                                        vals.len()
+                                    )
+                                ))
+                            }
+                        },
+                        v => {
+                            return Err(Exception::TypeError {
+                                span: s,
+                                note: format!("Cannot index into a string with {}", v.ty().name()),
+                            }
+                            .into())
+                        }
+                    },
 
                     _ => {
                         return Err(Exception::TypeError {
@@ -311,6 +413,15 @@ impl<IO: InterpreterIO> Interpreter<IO> {
                         .into())
                     }
                 }
+            }
+            Expr::Vec(exprs) => {
+                let mut vals = Vec::new();
+
+                for expr in exprs.iter() {
+                    vals.push(self.eval_expr(expr)?.into());
+                }
+
+                Value::Vec(vals)
             }
         }))
     }

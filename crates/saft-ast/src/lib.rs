@@ -26,6 +26,7 @@ pub enum Expr {
     String(String),
     Nil,
     Grouping(Box<Spanned<Expr>>),
+    Vec(Vec<Spanned<Expr>>),
 
     Call(Box<Spanned<Expr>>, Vec<Spanned<Expr>>),
 
@@ -58,6 +59,7 @@ impl Expr {
             Neg(..) => "negation",
             String(..) => "string",
             Index(..) => "index",
+            Vec(..) => "vec",
         }
     }
 }

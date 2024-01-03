@@ -182,7 +182,8 @@ impl<'a> Parser<'a> {
             | Token::Float(_)
             | Token::Integer(_)
             | Token::Nil
-            | Token::String(_) => {
+            | Token::String(_)
+            | Token::LBracket => {
                 let expr = self.parse_expr()?;
                 let s = expr.s.clone();
                 Ok(Spanned::new(Statement::Expr(expr), s))
@@ -200,6 +201,7 @@ impl<'a> Parser<'a> {
 
     fn parse_primary_expr(&mut self) -> Result<Spanned<Expr>, Error> {
         let st = self.next();
+        let start = st.s.clone();
         match st.v {
             Token::Identifier(ident) => Ok(Spanned::new(
                 Expr::Var(Spanned::new(ident.to_string(), st.s.clone())),
@@ -222,6 +224,23 @@ impl<'a> Parser<'a> {
                 let expr = self.parse_precedence(prec::UNARY + 1)?;
                 let s = st.s.join(&expr.s);
                 Ok(Spanned::new(Expr::Neg(Box::new(expr)), s))
+            }
+            Token::LBracket => {
+                let mut exprs = Vec::new();
+                loop {
+                    if self.peek().v == Token::RBracket {
+                        break;
+                    }
+
+                    exprs.push(self.parse_expr()?);
+
+                    if !self.try_eat(Token::Comma) {
+                        break;
+                    }
+                }
+                let end = self.eat(Token::RBracket)?;
+                let s = start.join(end);
+                Ok(s.spanned(Expr::Vec(exprs)))
             }
 
             _ => self.unexpected(st, "expression"),

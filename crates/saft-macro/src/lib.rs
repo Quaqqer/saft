@@ -41,7 +41,20 @@ pub fn native_function(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         }.into())
                     }
 
-                    let res: NativeRes = #inner(#(Cast::<#arg_tys>::cast(args[#arg_i].clone())?),*).into();
+                    let res: NativeRes = #inner(
+                        #(
+                            Cast::<#arg_tys>::cast(args[#arg_i].v.clone()).ok_or(
+                                Exception::Exotic {
+                                    message: "Cast error".into(),
+                                    span: Some(args[#arg_i].s.clone()),
+                                    note: Some(format!(
+                                        "Cannot cast {} into {}",
+                                        args[#arg_i].v.ty().name(),
+                                        <#arg_tys as CastFrom::<Value>>::ty_name(),
+                                    ))
+                                }
+                            )?.into()),*
+                    ).into();
                     res.0
                 }
 
