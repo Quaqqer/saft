@@ -1,4 +1,7 @@
-use crate::interpreter::Error;
+use crate::{
+    cast_error,
+    interpreter::{ControlFlow, Exception},
+};
 use std::{borrow::Borrow, rc::Rc};
 
 use saft_ast::Statement;
@@ -155,19 +158,19 @@ pub struct SaftFunction {
 #[derive(Clone, Debug)]
 pub struct NativeFuncData {
     pub name: &'static str,
-    pub f: fn(Vec<Value>) -> Result<Value, Error>,
+    pub f: fn(Vec<Value>) -> Result<Value, ControlFlow>,
 }
 
 pub trait Cast<T> {
-    fn cast(&self) -> Result<T, Error> {
+    fn cast(&self) -> Result<T, ControlFlow> {
         self.cast_maybe_spanned(None)
     }
 
-    fn cast_spanned(&self, span: Span) -> Result<T, Error> {
+    fn cast_spanned(&self, span: Span) -> Result<T, ControlFlow> {
         self.cast_maybe_spanned(Some(span))
     }
 
-    fn cast_maybe_spanned(&self, span: Option<Span>) -> Result<T, Error>;
+    fn cast_maybe_spanned(&self, span: Option<Span>) -> Result<T, ControlFlow>;
 }
 
 impl From<f64> for Value {
@@ -200,7 +203,7 @@ impl From<String> for Value {
     }
 }
 
-pub struct NativeRes(pub Result<Value, Error>);
+pub struct NativeRes(pub Result<Value, ControlFlow>);
 
 impl<T: Into<Value>> From<T> for NativeRes {
     fn from(value: T) -> Self {
@@ -208,66 +211,50 @@ impl<T: Into<Value>> From<T> for NativeRes {
     }
 }
 
-impl<T: Into<Value>> From<Result<T, Error>> for NativeRes {
-    fn from(value: Result<T, Error>) -> Self {
-        NativeRes(value.map(|v| v.into()))
+impl<V: Into<Value>, C: Into<ControlFlow>> From<Result<V, C>> for NativeRes {
+    fn from(value: Result<V, C>) -> Self {
+        NativeRes(value.map(|v| v.into()).map_err(|e| e.into()))
     }
 }
 
 impl Cast<f64> for Value {
-    fn cast_maybe_spanned(&self, span: Option<Span>) -> Result<f64, Error> {
+    fn cast_maybe_spanned(&self, _span: Option<Span>) -> Result<f64, ControlFlow> {
         match self {
             Value::Num(Num::Float(f)) => Ok(*f),
-            _ => Err(Error::Exotic {
-                message: "Cannot cast".into(),
-                span,
-                note: None,
-            }),
+            v => Err(cast_error!(v, "float")),
         }
     }
 }
 
 impl Cast<i64> for Value {
-    fn cast_maybe_spanned(&self, span: Option<Span>) -> Result<i64, Error> {
+    fn cast_maybe_spanned(&self, _span: Option<Span>) -> Result<i64, ControlFlow> {
         match self {
             Value::Num(Num::Int(i)) => Ok(*i),
-            _ => Err(Error::Exotic {
-                message: "Cannot cast".into(),
-                span,
-                note: None,
-            }),
+            v => Err(cast_error!(v, "integer")),
         }
     }
 }
 
 impl Cast<Value> for Value {
-    fn cast_maybe_spanned(&self, _span: Option<Span>) -> Result<Value, Error> {
+    fn cast_maybe_spanned(&self, _span: Option<Span>) -> Result<Value, ControlFlow> {
         Ok(self.clone())
     }
 }
 
 impl Cast<Num> for Value {
-    fn cast_maybe_spanned(&self, span: Option<Span>) -> Result<Num, Error> {
+    fn cast_maybe_spanned(&self, _span: Option<Span>) -> Result<Num, ControlFlow> {
         match self {
             Value::Num(num) => Ok(num.clone()),
-            _ => Err(Error::Exotic {
-                message: "Cannot cast".into(),
-                span,
-                note: None,
-            }),
+            v => Err(cast_error!(v, "numeric")),
         }
     }
 }
 
 impl Cast<String> for Value {
-    fn cast_maybe_spanned(&self, span: Option<Span>) -> Result<String, Error> {
+    fn cast_maybe_spanned(&self, _span: Option<Span>) -> Result<String, ControlFlow> {
         match self {
             Value::String(s) => Ok(s.clone()),
-            _ => Err(Error::Exotic {
-                message: "Cannot cast".into(),
-                span,
-                note: None,
-            }),
+            v => Err(cast_error!(v, "string")),
         }
     }
 }

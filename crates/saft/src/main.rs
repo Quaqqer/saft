@@ -95,7 +95,7 @@ where
 
     match saft_parser::Parser::new(s).parse_single_statment() {
         Ok(spanned_stmt) => match &spanned_stmt.v {
-            saft_ast::Statement::Expr(se) => match interpreter.eval_expr(se) {
+            saft_ast::Statement::Expr(se) => match interpreter.eval_outer_expr(se) {
                 Ok(v) => match v {
                     saft_eval::value::Value::Nil => {}
                     v => println!("{}", v.repr()),
@@ -105,7 +105,7 @@ where
                 }
             },
 
-            _ => match interpreter.exec_statement(&spanned_stmt) {
+            _ => match interpreter.exec_outer_statement(&spanned_stmt) {
                 Ok(..) => {}
                 Err(err) => {
                     term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap()

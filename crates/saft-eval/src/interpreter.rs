@@ -7,9 +7,80 @@ use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+#[macro_export]
+macro_rules! exotic {
+    ($msg:expr) => {
+        Exception::Exotic {
+            message: $msg.into(),
+            span: None,
+            note: None,
+        }
+        .into()
+    };
+
+    ($msg:expr, $span:expr) => {
+        Exception::Exotic {
+            message: $msg.into(),
+            span: Some($span),
+            note: None,
+        }
+        .into()
+    };
+
+    ($msg:expr, $span:expr, $note:expr) => {
+        Exception::Exotic {
+            message: $msg.into(),
+            span: Some($span),
+            note: Some($note),
+        }
+        .into()
+    };
+}
+
+#[macro_export]
+macro_rules! cast_error {
+    ($got:expr, $expected:expr) => {
+        Exception::Exotic {
+            message: "Cast error".into(),
+            span: None,
+            note: Some(format!(
+                "Cannot cast {} into {}",
+                $got.type_name(),
+                $expected
+            )),
+        }
+        .into()
+    };
+}
+
+#[macro_export]
+macro_rules! type_error {
+    ($got:expr, $expected:expr) => {
+        Exception::TypeError {
+            span: $got.s,
+            note: format!("expected {} but got {}", $expected, $got.v.type_desc()),
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! unresolved_error {
+    ($var:expr, $span:expr) => {
+        Exception::UnresolvedVariable {
+            message: "Unresolved variable".into(),
+            span: $span.clone(),
+            note: format!(
+                "Variable '{}' could not be found in the current scope",
+                $var
+            ),
+        }
+        .into()
+    };
+}
+
 pub struct Interpreter<IO: InterpreterIO> {
     env: Env,
-    io: IO,
+    pub io: IO,
 }
 
 pub trait InterpreterIO {
@@ -46,15 +117,22 @@ impl<IO: InterpreterIO> Interpreter<IO> {
         res
     }
 
-    pub fn exec_module(&mut self, module: Module) -> Result<(), Error> {
+    pub fn exec_module(&mut self, module: Module) -> Result<(), Exception> {
         for stmt in module.stmts.iter() {
-            self.exec_statement(stmt)?;
+            self.exec_outer_statement(stmt)?;
         }
 
         Ok(())
     }
 
-    pub fn exec_statement(&mut self, stmt: &Spanned<Statement>) -> Result<(), Error> {
+    pub fn exec_outer_statement(&mut self, stmt: &Spanned<Statement>) -> Result<(), Exception> {
+        self.exec_statement(stmt).map_err(|e| match e {
+            ControlFlow::Return(_) => exotic!("Cannot return from outer scope"),
+            ControlFlow::Exception(ex) => ex,
+        })
+    }
+
+    fn exec_statement(&mut self, stmt: &Spanned<Statement>) -> Result<(), ControlFlow> {
         match &stmt.v {
             Statement::Expr(se) => self.eval_expr(se).map(|_| ()),
             Statement::Declare { ident, expr } => {
@@ -76,12 +154,22 @@ impl<IO: InterpreterIO> Interpreter<IO> {
             }
             Statement::Return(expr) => {
                 let v = self.eval_expr(expr)?;
-                Err(Error::Return(v))
+                Err(ControlFlow::Return(v))
             }
         }
     }
 
-    pub fn eval_expr(&mut self, expr: impl Borrow<Spanned<Expr>>) -> Result<Value, Error> {
+    pub fn eval_outer_expr(
+        &mut self,
+        expr: impl Borrow<Spanned<Expr>>,
+    ) -> Result<Value, Exception> {
+        self.eval_expr(expr).map_err(|e| match e {
+            ControlFlow::Return(_) => exotic!("Cannot return from outer scope"),
+            ControlFlow::Exception(ex) => ex,
+        })
+    }
+
+    pub fn eval_expr(&mut self, expr: impl Borrow<Spanned<Expr>>) -> Result<Value, ControlFlow> {
         let expr = expr.borrow();
 
         let s = expr.s.clone();
@@ -98,11 +186,11 @@ impl<IO: InterpreterIO> Interpreter<IO> {
                     self.env.assign(ident, res.clone())?;
                     Ok(res)
                 } else {
-                    Err(Error::Exotic {
-                        message: "Cannot assign to a non-variable".into(),
-                        span: Some(s),
-                        note: Some(format!("Found {}", lhs.v.describe())),
-                    })
+                    Err(exotic!(
+                        "Cannot assign to a non-variable",
+                        s,
+                        format!("Found {}", lhs.v.describe())
+                    ))
                 }
             }
             Expr::Add(lhs, rhs) => {
@@ -146,7 +234,7 @@ impl<IO: InterpreterIO> Interpreter<IO> {
 
                 match fun {
                     Value::Function(Function::SaftFunction(SaftFunction { params, body })) => {
-                        let res: Result<Value, Error> = self.scoped(|interpreter| {
+                        let res: Result<Value, ControlFlow> = self.scoped(|interpreter| {
                             for (arg_name, arg) in params.iter().zip(arg_vals.iter()) {
                                 interpreter.env.declare(arg_name, arg.clone());
                             }
@@ -160,18 +248,18 @@ impl<IO: InterpreterIO> Interpreter<IO> {
 
                         match res {
                             Ok(v) => Ok(v),
-                            Err(Error::Return(v)) => Ok(v),
+                            Err(ControlFlow::Return(v)) => Ok(v),
                             Err(e) => Err(e),
                         }
                     }
                     Value::Function(Function::NativeFunction(NativeFuncData { f, .. })) => {
                         f(arg_vals)
                     }
-                    _ => Err(Error::Exotic {
-                        message: "Cannot call non-function".into(),
-                        span: Some(s),
-                        note: Some(format!("Got type {}", fun.type_name())),
-                    }),
+                    _ => Err(exotic!(
+                        "Cannot call non-function",
+                        s,
+                        format!("Got type {}", fun.type_name())
+                    )),
                 }
             }
             Expr::Neg(expr) => Ok(Value::Num(
@@ -194,17 +282,14 @@ impl Env {
         env
     }
 
-    fn lookup(&self, sident: &Spanned<Ident>) -> Result<Value, Error> {
+    fn lookup(&self, sident: &Spanned<Ident>) -> Result<Value, ControlFlow> {
         for scope in self.scopes.iter().rev() {
             if let Some(v) = scope.get(&sident.v) {
                 return Ok(v.clone());
             }
         }
 
-        Err(Error::UnresolvedVariable {
-            message: "Could not look up variable".into(),
-            span: sident.s.clone(),
-        })
+        Err(unresolved_error!(sident.v, sident.s))
     }
 
     pub fn declare(&mut self, sident: &Spanned<Ident>, v: Value) {
@@ -215,7 +300,7 @@ impl Env {
         self.scopes.last_mut().unwrap().insert(ident.clone(), v);
     }
 
-    pub fn assign(&mut self, sident: &Spanned<Ident>, v: Value) -> Result<(), Error> {
+    pub fn assign(&mut self, sident: &Spanned<Ident>, v: Value) -> Result<(), ControlFlow> {
         for scope in self.scopes.iter_mut().rev() {
             match scope.get_mut(&sident.v) {
                 Some(r) => {
@@ -226,15 +311,16 @@ impl Env {
             }
         }
 
-        Err(Error::UnresolvedVariable {
-            message: "Could not resolve variable when assigning".into(),
-            span: sident.s.clone(),
-        })
+        Err(unresolved_error!(sident.v, sident.s))
     }
 }
 
-#[derive(Debug)]
-pub enum Error {
+pub enum ControlFlow {
+    Return(Value),
+    Exception(Exception),
+}
+
+pub enum Exception {
     Exotic {
         message: String,
         span: Option<Span>,
@@ -243,18 +329,24 @@ pub enum Error {
     UnresolvedVariable {
         message: String,
         span: Span,
+        note: String,
     },
     TypeError {
-        message: String,
         span: Span,
+        note: String,
     },
-    Return(Value),
 }
 
-impl Error {
+impl From<Exception> for ControlFlow {
+    fn from(value: Exception) -> Self {
+        ControlFlow::Exception(value)
+    }
+}
+
+impl Exception {
     pub fn diagnostic<FileId>(&self, file_id: FileId) -> Diagnostic<FileId> {
         match self {
-            Error::Exotic {
+            Exception::Exotic {
                 message,
                 span,
                 note,
@@ -269,13 +361,20 @@ impl Error {
                 }
                 diag
             }
-            Error::UnresolvedVariable { message, span } => Diagnostic::error()
+            Exception::UnresolvedVariable {
+                message,
+                span,
+                note,
+            } => Diagnostic::error()
                 .with_message(message)
-                .with_labels(vec![Label::primary(file_id, span.r.clone())]),
-            Error::TypeError { message, span } => Diagnostic::error()
-                .with_message(format!("TypeError: {}", message))
-                .with_labels(vec![Label::primary(file_id, span.r.clone())]),
-            Error::Return { .. } => panic!("No diagnostic for returns"),
+                .with_labels(vec![
+                    Label::primary(file_id, span.r.clone()).with_message(note)
+                ]),
+            Exception::TypeError { span, note } => Diagnostic::error()
+                .with_message("Type error")
+                .with_labels(vec![
+                    Label::primary(file_id, span.r.clone()).with_message(note)
+                ]),
         }
     }
 }

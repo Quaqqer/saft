@@ -1,6 +1,9 @@
+use crate::exotic;
+use crate::interpreter::ControlFlow;
 use saft_macro::native_function;
 
-use crate::interpreter::{Env, Error};
+use crate::interpreter::Env;
+use crate::interpreter::Exception;
 use crate::value::{Cast, Function, NativeFunc, NativeFuncData, NativeRes, Num, Value};
 
 #[native_function]
@@ -35,12 +38,9 @@ fn repr(val: Value) -> String {
 }
 
 #[native_function]
-fn read(fname: String) -> Result<String, Error> {
-    std::fs::read_to_string(&fname).map_err(|_| Error::Exotic {
-        message: format!("Could not open file '{}'", &fname),
-        span: None,
-        note: None,
-    })
+fn read(fname: String) -> Result<String, Exception> {
+    std::fs::read_to_string(&fname)
+        .map_err(|_| exotic!(format!("Could not open file '{}'", &fname)))
 }
 
 pub fn add_natives(env: &mut Env) {
