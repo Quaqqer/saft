@@ -35,7 +35,8 @@ pub fn native_function(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
                     assert!(args.len() == #n_params);
 
-                    Ok(#inner(#(Cast::<#arg_tys>::cast(&args[#arg_i])?),*).into())
+                    let res: NativeRes = #inner(#(Cast::<#arg_tys>::cast(&args[#arg_i])?),*).into();
+                    res.0
                 }
 
                 NativeFuncData {

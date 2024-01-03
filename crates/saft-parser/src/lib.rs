@@ -181,7 +181,8 @@ impl<'a> Parser<'a> {
             | Token::Identifier(_)
             | Token::Float(_)
             | Token::Integer(_)
-            | Token::Nil => {
+            | Token::Nil
+            | Token::String(_) => {
                 let expr = self.parse_expr()?;
                 let s = expr.s.clone();
                 Ok(Spanned::new(Statement::Expr(expr), s))
@@ -207,6 +208,7 @@ impl<'a> Parser<'a> {
             Token::Float(f) => Ok(Spanned::new(Expr::Float(f), st.s)),
             Token::Integer(i) => Ok(Spanned::new(Expr::Integer(i), st.s)),
             Token::Nil => Ok(Spanned::new(Expr::Nil, st.s)),
+            Token::String(s) => Ok(st.s.spanned(Expr::String(s))),
             Token::LParen => {
                 let start = st.s;
                 let inner = self.parse_expr()?;

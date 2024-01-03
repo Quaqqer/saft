@@ -51,11 +51,7 @@ impl<'a> Cursor<'a> {
     where
         F: Fn(char) -> bool,
     {
-        loop {
-            if !self.eat(&f) {
-                break;
-            }
-        }
+        while self.eat(&f) {}
     }
 
     pub fn advance(&mut self) {

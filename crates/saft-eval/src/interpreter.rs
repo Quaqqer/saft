@@ -71,6 +71,7 @@ impl Interpreter {
             Expr::Integer(i) => Ok((*i).into()),
             Expr::Float(f) => Ok((*f).into()),
             Expr::Nil => Ok(Value::Nil),
+            Expr::String(s) => Ok(Value::String(s.clone())),
             Expr::Assign(lhs, rhs) => {
                 if let Expr::Var(ident) = &lhs.v {
                     let res = self.eval_expr(rhs.as_ref())?;
@@ -153,9 +154,9 @@ impl Interpreter {
                     }),
                 }
             }
-            Expr::Neg(expr) => {
-                Ok(Value::Num(Cast::<Num>::cast(&self.eval_expr(expr.as_ref())?)?.neg()))
-            }
+            Expr::Neg(expr) => Ok(Value::Num(
+                Cast::<Num>::cast(&self.eval_expr(expr.as_ref())?)?.neg(),
+            )),
         }
     }
 }

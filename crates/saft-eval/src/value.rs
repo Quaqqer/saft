@@ -9,15 +9,17 @@ pub enum Value {
     Nil,
     Num(Num),
     Function(Function),
+    String(String),
 }
 
-impl std::fmt::Display for Value {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Value {
+    pub fn repr(&self) -> String {
         match self {
-            Value::Nil => write!(f, "nil"),
-            Value::Num(num) => write!(f, "{}", num),
-            Value::Function(Function::SaftFunction(..)) => write!(f, "<function>"),
-            Value::Function(Function::NativeFunction(..)) => write!(f, "<builtin function>"),
+            Value::Nil => "nil".into(),
+            Value::Num(num) => num.repr(),
+            Value::Function(Function::SaftFunction(..)) => "<function>".into(),
+            Value::Function(Function::NativeFunction(..)) => "<builtin function>".into(),
+            Value::String(s) => format!("\"{}\"", s),
         }
     }
 }
@@ -27,6 +29,17 @@ pub enum Num {
     Bool(bool),
     Int(i64),
     Float(f64),
+}
+
+impl Num {
+    pub fn repr(&self) -> String {
+        match self {
+            Num::Bool(true) => "true".into(),
+            Num::Bool(false) => "false".into(),
+            Num::Int(i) => format!("{}", i),
+            Num::Float(f) => format!("{:?}", f),
+        }
+    }
 }
 
 impl std::fmt::Display for Num {
@@ -114,6 +127,7 @@ impl Value {
             Value::Num(Num::Int(_)) => "int".into(),
             Value::Num(Num::Float(_)) => "float".into(),
             Value::Function(..) => "function".into(),
+            Value::String(..) => "string".into(),
         }
     }
 }
@@ -172,6 +186,26 @@ impl From<Num> for Value {
     }
 }
 
+impl From<String> for Value {
+    fn from(value: String) -> Self {
+        Value::String(value)
+    }
+}
+
+pub struct NativeRes(pub Result<Value, Error>);
+
+impl<T: Into<Value>> From<T> for NativeRes {
+    fn from(value: T) -> Self {
+        NativeRes(Ok(value.into()))
+    }
+}
+
+impl<T: Into<Value>> From<Result<T, Error>> for NativeRes {
+    fn from(value: Result<T, Error>) -> Self {
+        NativeRes(value.map(|v| v.into()))
+    }
+}
+
 impl Cast<f64> for Value {
     fn cast_maybe_spanned(&self, span: Option<Span>) -> Result<f64, Error> {
         match self {
@@ -208,6 +242,19 @@ impl Cast<Num> for Value {
     fn cast_maybe_spanned(&self, span: Option<Span>) -> Result<Num, Error> {
         match self {
             Value::Num(num) => Ok(num.clone()),
+            _ => Err(Error::Exotic {
+                message: "Cannot cast".into(),
+                span,
+                note: None,
+            }),
+        }
+    }
+}
+
+impl Cast<String> for Value {
+    fn cast_maybe_spanned(&self, span: Option<Span>) -> Result<String, Error> {
+        match self {
+            Value::String(s) => Ok(s.clone()),
             _ => Err(Error::Exotic {
                 message: "Cannot cast".into(),
                 span,

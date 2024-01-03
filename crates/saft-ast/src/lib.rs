@@ -23,6 +23,7 @@ pub enum Expr {
     Var(Spanned<Ident>),
     Integer(i64),
     Float(f64),
+    String(String),
     Nil,
     Grouping(Box<Spanned<Expr>>),
 
@@ -54,6 +55,7 @@ impl Expr {
             Grouping(..) => "grouping",
             Call(..) => "call",
             Neg(_) => "negation",
+            String(_) => "string",
         }
     }
 }

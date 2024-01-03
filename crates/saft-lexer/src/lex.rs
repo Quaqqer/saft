@@ -87,6 +87,19 @@ impl<'a> Lexer<'a> {
                     Self::eat_numeric(&mut cur)
                 }
 
+                '"' => {
+                    cur.advance();
+                    cur.eat_while(|c| c != '"');
+
+                    if cur.eat_char('"') {
+                        let content = &cur.str();
+                        let content = &content[1..content.len() - 1];
+                        mktoken!(cur, T::String(content.into()))
+                    } else {
+                        mktoken!(cur, T::Error("undelimited string".into()))
+                    }
+                }
+
                 _ => {
                     cur.eat_while(|c| !Self::is_delimiter(c));
                     mktoken!(cur, T::Unknown)

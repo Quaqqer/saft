@@ -95,7 +95,7 @@ fn interpret_stmt(interpreter: &mut Interpreter, s: &str) {
             saft_ast::Statement::Expr(se) => match interpreter.eval_expr(se) {
                 Ok(v) => match v {
                     saft_eval::value::Value::Nil => {}
-                    v => println!("{}", v),
+                    v => println!("{}", v.repr()),
                 },
                 Err(err) => {
                     term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap()
