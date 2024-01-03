@@ -96,7 +96,7 @@ where
     match saft_parser::Parser::new(s).parse_single_statment() {
         Ok(spanned_stmt) => match &spanned_stmt.v {
             saft_ast::Statement::Expr(se) => match interpreter.eval_outer_expr(se) {
-                Ok(v) => match v {
+                Ok(v) => match v.v {
                     saft_eval::value::Value::Nil => {}
                     v => println!("{}", v.repr()),
                 },

@@ -1,5 +1,6 @@
 use crate::exotic;
 use crate::interpreter::ControlFlow;
+use saft_common::span::Spanned;
 use saft_macro::native_function;
 
 use crate::interpreter::Env;

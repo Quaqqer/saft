@@ -5,7 +5,7 @@ use crate::{
 use std::{borrow::Borrow, rc::Rc};
 
 use saft_ast::Statement;
-use saft_common::span::{Span, Spanned};
+use saft_common::span::Spanned;
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -158,19 +158,11 @@ pub struct SaftFunction {
 #[derive(Clone, Debug)]
 pub struct NativeFuncData {
     pub name: &'static str,
-    pub f: fn(Vec<Value>) -> Result<Value, ControlFlow>,
+    pub f: fn(Vec<Spanned<Value>>) -> Result<Value, ControlFlow>,
 }
 
 pub trait Cast<T> {
-    fn cast(&self) -> Result<T, ControlFlow> {
-        self.cast_maybe_spanned(None)
-    }
-
-    fn cast_spanned(&self, span: Span) -> Result<T, ControlFlow> {
-        self.cast_maybe_spanned(Some(span))
-    }
-
-    fn cast_maybe_spanned(&self, span: Option<Span>) -> Result<T, ControlFlow>;
+    fn cast(&self) -> Result<T, ControlFlow>;
 }
 
 impl From<f64> for Value {
@@ -217,45 +209,45 @@ impl<V: Into<Value>, C: Into<ControlFlow>> From<Result<V, C>> for NativeRes {
     }
 }
 
-impl Cast<f64> for Value {
-    fn cast_maybe_spanned(&self, _span: Option<Span>) -> Result<f64, ControlFlow> {
-        match self {
+impl Cast<f64> for Spanned<Value> {
+    fn cast(&self) -> Result<f64, ControlFlow> {
+        match &self.v {
             Value::Num(Num::Float(f)) => Ok(*f),
-            v => Err(cast_error!(v, "float")),
+            _ => Err(cast_error!(self, "float")),
         }
     }
 }
 
-impl Cast<i64> for Value {
-    fn cast_maybe_spanned(&self, _span: Option<Span>) -> Result<i64, ControlFlow> {
-        match self {
+impl Cast<i64> for Spanned<Value> {
+    fn cast(&self) -> Result<i64, ControlFlow> {
+        match &self.v {
             Value::Num(Num::Int(i)) => Ok(*i),
-            v => Err(cast_error!(v, "integer")),
+             _=> Err(cast_error!(self, "integer")),
         }
     }
 }
 
-impl Cast<Value> for Value {
-    fn cast_maybe_spanned(&self, _span: Option<Span>) -> Result<Value, ControlFlow> {
-        Ok(self.clone())
-    }
-}
-
-impl Cast<Num> for Value {
-    fn cast_maybe_spanned(&self, _span: Option<Span>) -> Result<Num, ControlFlow> {
-        match self {
+impl Cast<Num> for Spanned<Value> {
+    fn cast(&self) -> Result<Num, ControlFlow> {
+        match &self.v {
             Value::Num(num) => Ok(num.clone()),
-            v => Err(cast_error!(v, "numeric")),
+            _ => Err(cast_error!(self, "numeric")),
         }
     }
 }
 
-impl Cast<String> for Value {
-    fn cast_maybe_spanned(&self, _span: Option<Span>) -> Result<String, ControlFlow> {
-        match self {
+impl Cast<String> for Spanned<Value> {
+    fn cast(&self) -> Result<String, ControlFlow> {
+        match &self.v {
             Value::String(s) => Ok(s.clone()),
-            v => Err(cast_error!(v, "string")),
+            _ => Err(cast_error!(self, "string")),
         }
+    }
+}
+
+impl<T: Clone> Cast<T> for Spanned<T> {
+    fn cast(&self) -> Result<T, ControlFlow> {
+        Ok(self.v.clone())
     }
 }
 

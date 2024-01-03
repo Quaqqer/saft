@@ -42,10 +42,10 @@ macro_rules! cast_error {
     ($got:expr, $expected:expr) => {
         Exception::Exotic {
             message: "Cast error".into(),
-            span: None,
+            span: Some($got.s.clone()),
             note: Some(format!(
                 "Cannot cast {} into {}",
-                $got.type_name(),
+                $got.v.type_name(),
                 $expected
             )),
         }
@@ -137,7 +137,7 @@ impl<IO: InterpreterIO> Interpreter<IO> {
             Statement::Expr(se) => self.eval_expr(se).map(|_| ()),
             Statement::Declare { ident, expr } => {
                 let res = self.eval_expr(expr)?;
-                self.env.declare(ident, res);
+                self.env.declare(ident, res.v);
                 Ok(())
             }
             Statement::Item(Item::Fn {
@@ -154,7 +154,7 @@ impl<IO: InterpreterIO> Interpreter<IO> {
             }
             Statement::Return(expr) => {
                 let v = self.eval_expr(expr)?;
-                Err(ControlFlow::Return(v))
+                Err(ControlFlow::Return(v.v))
             }
         }
     }
@@ -162,68 +162,71 @@ impl<IO: InterpreterIO> Interpreter<IO> {
     pub fn eval_outer_expr(
         &mut self,
         expr: impl Borrow<Spanned<Expr>>,
-    ) -> Result<Value, Exception> {
+    ) -> Result<Spanned<Value>, Exception> {
         self.eval_expr(expr).map_err(|e| match e {
             ControlFlow::Return(_) => exotic!("Cannot return from outer scope"),
             ControlFlow::Exception(ex) => ex,
         })
     }
 
-    pub fn eval_expr(&mut self, expr: impl Borrow<Spanned<Expr>>) -> Result<Value, ControlFlow> {
+    pub fn eval_expr(
+        &mut self,
+        expr: impl Borrow<Spanned<Expr>>,
+    ) -> Result<Spanned<Value>, ControlFlow> {
         let expr = expr.borrow();
 
         let s = expr.s.clone();
 
-        match &expr.v {
-            Expr::Var(ident) => self.env.lookup(ident),
-            Expr::Integer(i) => Ok((*i).into()),
-            Expr::Float(f) => Ok((*f).into()),
-            Expr::Nil => Ok(Value::Nil),
-            Expr::String(s) => Ok(Value::String(s.clone())),
+        Ok(s.spanned(match &expr.v {
+            Expr::Var(ident) => self.env.lookup(ident)?,
+            Expr::Integer(i) => (*i).into(),
+            Expr::Float(f) => (*f).into(),
+            Expr::Nil => Value::Nil,
+            Expr::String(s) => Value::String(s.clone()),
             Expr::Assign(lhs, rhs) => {
                 if let Expr::Var(ident) = &lhs.v {
                     let res = self.eval_expr(rhs.as_ref())?;
-                    self.env.assign(ident, res.clone())?;
-                    Ok(res)
+                    self.env.assign(ident, res.v.clone())?;
+                    res.v
                 } else {
-                    Err(exotic!(
+                    return Err(exotic!(
                         "Cannot assign to a non-variable",
                         s,
                         format!("Found {}", lhs.v.describe())
-                    ))
+                    ));
                 }
             }
             Expr::Add(lhs, rhs) => {
                 let lhs: Num = self.eval_expr(lhs.as_ref())?.cast()?;
                 let rhs: Num = self.eval_expr(rhs.as_ref())?.cast()?;
 
-                Ok(Value::Num(lhs.add(rhs)))
+                Value::Num(lhs.add(rhs))
             }
             Expr::Sub(lhs, rhs) => {
                 let lhs: Num = self.eval_expr(lhs.as_ref())?.cast()?;
                 let rhs: Num = self.eval_expr(rhs.as_ref())?.cast()?;
 
-                Ok(Value::Num(lhs.sub(rhs)))
+                Value::Num(lhs.sub(rhs))
             }
             Expr::Mul(lhs, rhs) => {
                 let lhs: Num = self.eval_expr(lhs.as_ref())?.cast()?;
                 let rhs: Num = self.eval_expr(rhs.as_ref())?.cast()?;
 
-                Ok(Value::Num(lhs.mul(rhs)))
+                Value::Num(lhs.mul(rhs))
             }
             Expr::Div(lhs, rhs) => {
                 let lhs: Num = self.eval_expr(lhs.as_ref())?.cast()?;
                 let rhs: Num = self.eval_expr(rhs.as_ref())?.cast()?;
 
-                Ok(Value::Num(lhs.div(rhs)))
+                Value::Num(lhs.div(rhs))
             }
             Expr::Pow(lhs, rhs) => {
                 let lhs: Num = self.eval_expr(lhs.as_ref())?.cast()?;
                 let rhs: Num = self.eval_expr(rhs.as_ref())?.cast()?;
 
-                Ok(Value::Num(lhs.pow(rhs)))
+                Value::Num(lhs.pow(rhs))
             }
-            Expr::Grouping(inner) => self.eval_expr(inner.as_ref()),
+            Expr::Grouping(inner) => self.eval_expr(inner.as_ref())?.v,
             Expr::Call(f, args) => {
                 let fun = self.eval_expr(f.as_ref())?;
                 let mut arg_vals = Vec::new();
@@ -232,11 +235,11 @@ impl<IO: InterpreterIO> Interpreter<IO> {
                     arg_vals.push(self.eval_expr(arg)?);
                 }
 
-                match fun {
+                match fun.v {
                     Value::Function(Function::SaftFunction(SaftFunction { params, body })) => {
-                        let res: Result<Value, ControlFlow> = self.scoped(|interpreter| {
+                        match self.scoped(|interpreter| {
                             for (arg_name, arg) in params.iter().zip(arg_vals.iter()) {
-                                interpreter.env.declare(arg_name, arg.clone());
+                                interpreter.env.declare(arg_name, arg.v.clone());
                             }
 
                             for statement in body.iter() {
@@ -244,28 +247,28 @@ impl<IO: InterpreterIO> Interpreter<IO> {
                             }
 
                             Ok(Value::Nil)
-                        });
-
-                        match res {
-                            Ok(v) => Ok(v),
-                            Err(ControlFlow::Return(v)) => Ok(v),
-                            Err(e) => Err(e),
+                        }) {
+                            Ok(v) => v,
+                            Err(ControlFlow::Return(v)) => v,
+                            Err(e) => return Err(e),
                         }
                     }
                     Value::Function(Function::NativeFunction(NativeFuncData { f, .. })) => {
-                        f(arg_vals)
+                        f(arg_vals)?
                     }
-                    _ => Err(exotic!(
-                        "Cannot call non-function",
-                        s,
-                        format!("Got type {}", fun.type_name())
-                    )),
+                    _ => {
+                        return Err(exotic!(
+                            "Cannot call non-function",
+                            s,
+                            format!("Got type {}", fun.v.type_name())
+                        ))
+                    }
                 }
             }
-            Expr::Neg(expr) => Ok(Value::Num(
-                Cast::<Num>::cast(&self.eval_expr(expr.as_ref())?)?.neg(),
-            )),
-        }
+            Expr::Neg(expr) => {
+                Value::Num(Cast::<Num>::cast(&self.eval_expr(expr.as_ref())?)?.neg())
+            }
+        }))
     }
 }
 
