@@ -72,7 +72,10 @@ impl<'a> Parser<'a> {
         let st = self.peek();
 
         match st.v {
-            v if v == t => Ok(st.s),
+            v if v == t => {
+                self.advance();
+                Ok(st.s)
+            }
             _ => Err(Error::UnexpectedToken {
                 got: st,
                 expected: t.describe().into(),

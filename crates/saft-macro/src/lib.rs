@@ -30,7 +30,7 @@ pub fn native_function(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
         impl NativeFunc for #name {
             fn data() -> NativeFuncData {
-                fn #name(args: Vec<Val>) -> Result<Val, Error> {
+                fn #name(args: Vec<Value>) -> Result<Value, Error> {
                     #fn_
 
                     assert!(args.len() == #n_params);

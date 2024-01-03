@@ -13,7 +13,7 @@ use codespan_reporting::{
 };
 use platform_dirs::AppDirs;
 use rustyline::{error::ReadlineError, DefaultEditor};
-use saft_eval::{eval_expr, exec_module, exec_statement, Env};
+use saft_eval::interpreter::Interpreter;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -34,8 +34,12 @@ fn main() {
             }
 
             let s = fs::read_to_string(&path).expect("Could not read file");
-            let mut env = Env::new();
-            interpret_module(&mut env, path.file_name().unwrap().to_str().unwrap(), &s);
+            let mut interpreter = Interpreter::new();
+            interpret_module(
+                &mut interpreter,
+                path.file_name().unwrap().to_str().unwrap(),
+                &s,
+            );
         }
         None => {
             repl();
@@ -56,14 +60,14 @@ fn repl() {
 
     let _ = rl.load_history(&history_file);
 
-    let mut env = Env::new();
+    let mut interpreter = Interpreter::new();
 
     loop {
         let readline = rl.readline(">> ");
         match readline {
             Ok(line) => {
                 rl.add_history_entry(&line).unwrap();
-                interpret_stmt(&mut env, &line);
+                interpret_stmt(&mut interpreter, &line);
             }
             Err(ReadlineError::Interrupted | ReadlineError::Eof) => {
                 break;
@@ -79,7 +83,7 @@ fn repl() {
         .expect("Could not save history");
 }
 
-fn interpret_stmt(env: &mut Env, s: &str) {
+fn interpret_stmt(interpreter: &mut Interpreter, s: &str) {
     let mut files = SimpleFiles::new();
     let id = files.add("stdin", s);
 
@@ -88,14 +92,14 @@ fn interpret_stmt(env: &mut Env, s: &str) {
 
     match saft_parser::Parser::new(s).parse_single_statment() {
         Ok(spanned_stmt) => match &spanned_stmt.v {
-            saft_ast::Statement::Expr(se) => match eval_expr(env, &se) {
+            saft_ast::Statement::Expr(se) => match interpreter.eval_expr(&se) {
                 Ok(vref) => println!("{:?}", vref),
                 Err(err) => {
                     term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap()
                 }
             },
 
-            _ => match exec_statement(env, &spanned_stmt) {
+            _ => match interpreter.exec_statement(&spanned_stmt) {
                 Ok(..) => {}
                 Err(err) => {
                     term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap()
@@ -106,7 +110,7 @@ fn interpret_stmt(env: &mut Env, s: &str) {
     };
 }
 
-fn interpret_module(env: &mut Env, fname: &str, s: &str) {
+fn interpret_module(interpreter: &mut Interpreter, fname: &str, s: &str) {
     let mut files = SimpleFiles::new();
     let id = files.add(fname, s);
 
@@ -114,7 +118,7 @@ fn interpret_module(env: &mut Env, fname: &str, s: &str) {
     let config = codespan_reporting::term::Config::default();
     match saft_parser::Parser::new(s).parse_file() {
         Ok(module) => {
-            match exec_module(env, module) {
+            match interpreter.exec_module(module) {
                 Ok(..) => {}
                 Err(err) => {
                     term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap()
