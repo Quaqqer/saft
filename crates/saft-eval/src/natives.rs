@@ -1,16 +1,16 @@
 use saft_macro::native_function;
 
 use crate::interpreter::{Env, Error};
-use crate::value::{Cast, Function, NativeFunc, NativeFuncData, NativeRes, Value};
+use crate::value::{Cast, Function, NativeFunc, NativeFuncData, NativeRes, Num, Value};
 
 #[native_function]
-fn sin(arg: f64) -> f64 {
-    arg.sin()
+fn sin(arg: Num) -> f64 {
+    arg.cast_float().sin()
 }
 
 #[native_function]
-fn cos(arg: f64) -> f64 {
-    arg.cos()
+fn cos(arg: Num) -> f64 {
+    arg.cast_float().cos()
 }
 
 #[native_function]

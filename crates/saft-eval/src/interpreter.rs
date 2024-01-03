@@ -7,18 +7,38 @@ use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-pub struct Interpreter {
+pub struct Interpreter<IO: InterpreterIO> {
     env: Env,
+    io: IO,
 }
 
-impl Interpreter {
+pub trait InterpreterIO {
+    fn print(s: &str) {
+        println!("{}", s);
+    }
+}
+
+pub struct StandardIO {}
+
+impl StandardIO {
     pub fn new() -> Self {
-        Self { env: Env::new() }
+        Self {}
+    }
+}
+
+impl InterpreterIO for StandardIO {}
+
+impl<IO: InterpreterIO> Interpreter<IO> {
+    pub fn new(io: IO) -> Self {
+        Self {
+            env: Env::new(),
+            io,
+        }
     }
 
     fn scoped<F, T>(&mut self, f: F) -> T
     where
-        F: Fn(&mut Interpreter) -> T,
+        F: Fn(&mut Self) -> T,
     {
         self.env.scopes.push(HashMap::new());
         let res = f(self);

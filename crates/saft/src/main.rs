@@ -13,7 +13,7 @@ use codespan_reporting::{
 };
 use platform_dirs::AppDirs;
 use rustyline::{error::ReadlineError, DefaultEditor};
-use saft_eval::interpreter::Interpreter;
+use saft_eval::interpreter::{Interpreter, InterpreterIO, StandardIO};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -34,7 +34,7 @@ fn main() {
             }
 
             let s = fs::read_to_string(&path).expect("Could not read file");
-            let mut interpreter = Interpreter::new();
+            let mut interpreter = Interpreter::new(StandardIO::new());
             interpret_module(
                 &mut interpreter,
                 path.file_name().unwrap().to_str().unwrap(),
@@ -60,7 +60,7 @@ fn repl() {
 
     let _ = rl.load_history(&history_file);
 
-    let mut interpreter = Interpreter::new();
+    let mut interpreter = Interpreter::new(StandardIO::new());
 
     loop {
         let readline = rl.readline(">> ");
@@ -83,7 +83,10 @@ fn repl() {
         .expect("Could not save history");
 }
 
-fn interpret_stmt(interpreter: &mut Interpreter, s: &str) {
+fn interpret_stmt<IO>(interpreter: &mut Interpreter<IO>, s: &str)
+where
+    IO: InterpreterIO,
+{
     let mut files = SimpleFiles::new();
     let id = files.add("stdin", s);
 
@@ -113,7 +116,10 @@ fn interpret_stmt(interpreter: &mut Interpreter, s: &str) {
     };
 }
 
-fn interpret_module(interpreter: &mut Interpreter, fname: &str, s: &str) {
+fn interpret_module<IO>(interpreter: &mut Interpreter<IO>, fname: &str, s: &str)
+where
+    IO: InterpreterIO,
+{
     let mut files = SimpleFiles::new();
     let id = files.add(fname, s);
 

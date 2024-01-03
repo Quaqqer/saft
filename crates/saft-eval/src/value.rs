@@ -40,6 +40,14 @@ impl Num {
             Num::Float(f) => format!("{:?}", f),
         }
     }
+
+    pub fn cast_float(&self) -> f64 {
+        match self {
+            Num::Bool(b) => *b as i64 as f64,
+            Num::Int(i) => *i as f64,
+            Num::Float(f) => *f,
+        }
+    }
 }
 
 impl std::fmt::Display for Num {
