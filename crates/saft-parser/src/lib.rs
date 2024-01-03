@@ -53,13 +53,9 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_file(&'a mut self) -> Result<ast::Module, Error> {
-        let mut stmts = Vec::<Spanned<ast::Statement>>::new();
-
-        while !self.try_eat(Token::Eof) {
-            stmts.push(self.parse_statement()?);
-        }
-
-        Ok(Module { stmts })
+        Ok(Module {
+            stmts: self.parse_statements(Token::Eof)?,
+        })
     }
 
     fn next(&mut self) -> Spanned<Token> {
@@ -147,6 +143,17 @@ impl<'a> Parser<'a> {
                 expected: "End of file or ';'".into(),
             }),
         }
+    }
+
+    pub fn parse_statements(&mut self, end: Token) -> Result<Vec<Spanned<Statement>>, Error> {
+        let mut stmts = Vec::new();
+
+        while self.peek().v != end {
+            stmts.push(self.parse_statement()?);
+            self.eat(Token::Semicolon)?;
+        }
+
+        Ok(stmts)
     }
 
     pub fn parse_statement(&mut self) -> Result<Spanned<ast::Statement>, Error> {
@@ -309,15 +316,12 @@ impl<'a> Parser<'a> {
                 break;
             }
         }
+
         self.eat(Token::RParen)?;
 
         self.eat(Token::LBrace)?;
 
-        let mut body = Vec::new();
-
-        while self.peek().v != Token::RBrace {
-            body.push(self.parse_statement()?);
-        }
+        let body = self.parse_statements(Token::RBrace)?;
 
         let end = self.eat(Token::RBrace)?;
 

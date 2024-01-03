@@ -92,8 +92,11 @@ fn interpret_stmt(interpreter: &mut Interpreter, s: &str) {
 
     match saft_parser::Parser::new(s).parse_single_statment() {
         Ok(spanned_stmt) => match &spanned_stmt.v {
-            saft_ast::Statement::Expr(se) => match interpreter.eval_expr(&se) {
-                Ok(vref) => println!("{:?}", vref),
+            saft_ast::Statement::Expr(se) => match interpreter.eval_expr(se) {
+                Ok(v) => match v {
+                    saft_eval::value::Value::Nil => {}
+                    v => println!("{}", v),
+                },
                 Err(err) => {
                     term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap()
                 }

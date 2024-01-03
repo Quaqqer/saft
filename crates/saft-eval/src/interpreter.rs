@@ -1,8 +1,9 @@
 use crate::natives::add_natives;
-use crate::value::{Function, NativeFuncData, SaftFunction, Value};
+use crate::value::{Cast, Function, NativeFuncData, Num, SaftFunction, Value};
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use saft_ast::{Expr, Ident, Item, Module, Statement};
 use saft_common::span::{Span, Spanned};
+use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -60,13 +61,15 @@ impl Interpreter {
         }
     }
 
-    pub fn eval_expr(&mut self, expr: &Spanned<Expr>) -> Result<Value, Error> {
+    pub fn eval_expr(&mut self, expr: impl Borrow<Spanned<Expr>>) -> Result<Value, Error> {
+        let expr = expr.borrow();
+
         let s = expr.s.clone();
 
         match &expr.v {
             Expr::Var(ident) => self.env.lookup(ident),
-            Expr::Integer(i) => Ok(Value::Integer(*i)),
-            Expr::Float(f) => Ok(Value::Float(*f)),
+            Expr::Integer(i) => Ok((*i).into()),
+            Expr::Float(f) => Ok((*f).into()),
             Expr::Nil => Ok(Value::Nil),
             Expr::Assign(lhs, rhs) => {
                 if let Expr::Var(ident) = &lhs.v {
@@ -82,69 +85,34 @@ impl Interpreter {
                 }
             }
             Expr::Add(lhs, rhs) => {
-                let lv = self.eval_expr(lhs.as_ref())?;
-                let rv = self.eval_expr(rhs.as_ref())?;
+                let lhs: Num = self.eval_expr(lhs.as_ref())?.cast()?;
+                let rhs: Num = self.eval_expr(rhs.as_ref())?.cast()?;
 
-                match (lv, rv) {
-                    (Value::Integer(a), Value::Integer(b)) => Ok(Value::Integer(a + b)),
-                    _ => Err(Error::Exotic {
-                        message: "Binary operation error".into(),
-                        span: Some(s),
-                        note: None,
-                    }),
-                }
+                Ok(Value::Num(lhs.add(rhs)))
             }
             Expr::Sub(lhs, rhs) => {
-                let lv = self.eval_expr(lhs.as_ref())?;
-                let rv = self.eval_expr(rhs.as_ref())?;
+                let lhs: Num = self.eval_expr(lhs.as_ref())?.cast()?;
+                let rhs: Num = self.eval_expr(rhs.as_ref())?.cast()?;
 
-                match (lv, rv) {
-                    (Value::Integer(a), Value::Integer(b)) => Ok(Value::Integer(a - b)),
-                    _ => Err(Error::Exotic {
-                        message: "Binary operation error".into(),
-                        span: Some(s),
-                        note: None,
-                    }),
-                }
+                Ok(Value::Num(lhs.sub(rhs)))
             }
             Expr::Mul(lhs, rhs) => {
-                let lv = self.eval_expr(lhs.as_ref())?;
-                let rv = self.eval_expr(rhs.as_ref())?;
+                let lhs: Num = self.eval_expr(lhs.as_ref())?.cast()?;
+                let rhs: Num = self.eval_expr(rhs.as_ref())?.cast()?;
 
-                match (lv, rv) {
-                    (Value::Integer(a), Value::Integer(b)) => Ok(Value::Integer(a * b)),
-                    _ => Err(Error::Exotic {
-                        message: "Binary operation error".into(),
-                        span: Some(s),
-                        note: None,
-                    }),
-                }
+                Ok(Value::Num(lhs.mul(rhs)))
             }
             Expr::Div(lhs, rhs) => {
-                let lv = self.eval_expr(lhs.as_ref())?;
-                let rv = self.eval_expr(rhs.as_ref())?;
+                let lhs: Num = self.eval_expr(lhs.as_ref())?.cast()?;
+                let rhs: Num = self.eval_expr(rhs.as_ref())?.cast()?;
 
-                match (lv, rv) {
-                    (Value::Integer(a), Value::Integer(b)) => Ok(Value::Integer(a / b)),
-                    _ => Err(Error::Exotic {
-                        message: "Binary operation error".into(),
-                        span: Some(s),
-                        note: None,
-                    }),
-                }
+                Ok(Value::Num(lhs.div(rhs)))
             }
             Expr::Pow(lhs, rhs) => {
-                let lv = self.eval_expr(lhs.as_ref())?;
-                let rv = self.eval_expr(rhs.as_ref())?;
+                let lhs: Num = self.eval_expr(lhs.as_ref())?.cast()?;
+                let rhs: Num = self.eval_expr(rhs.as_ref())?.cast()?;
 
-                match (lv, rv) {
-                    (Value::Integer(a), Value::Integer(b)) => Ok(Value::Integer(a.pow(b as u32))),
-                    _ => Err(Error::Exotic {
-                        message: "Binary operation error".into(),
-                        span: Some(s),
-                        note: None,
-                    }),
-                }
+                Ok(Value::Num(lhs.pow(rhs)))
             }
             Expr::Grouping(inner) => self.eval_expr(inner.as_ref()),
             Expr::Call(f, args) => {
@@ -186,16 +154,7 @@ impl Interpreter {
                 }
             }
             Expr::Neg(expr) => {
-                let res = self.eval_expr(expr.as_ref())?;
-                match res {
-                    Value::Integer(i) => Ok(Value::Integer(-i)),
-                    Value::Float(f) => Ok(Value::Float(-f)),
-                    _ => Err(Error::Exotic {
-                        message: "Cannot negate value".into(),
-                        span: Some(s),
-                        note: None,
-                    }),
-                }
+                Ok(Value::Num(Cast::<Num>::cast(&self.eval_expr(expr.as_ref())?)?.neg()))
             }
         }
     }

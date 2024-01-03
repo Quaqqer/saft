@@ -23,7 +23,7 @@ fn time() -> f64 {
 
 #[native_function]
 fn print(val: Value) {
-    println!("{:?}", val);
+    println!("{}", val);
 }
 
 pub fn add_natives(env: &mut Env) {

@@ -1,26 +1,119 @@
 use crate::interpreter::Error;
-use saft_macro::native_function;
-use std::rc::Rc;
+use std::{borrow::Borrow, rc::Rc};
 
 use saft_ast::Statement;
-use saft_common::span::Spanned;
+use saft_common::span::{Span, Spanned};
 
 #[derive(Debug, Clone)]
 pub enum Value {
     Nil,
-    Integer(i64),
-    Float(f64),
+    Num(Num),
     Function(Function),
+}
+
+impl std::fmt::Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Value::Nil => write!(f, "nil"),
+            Value::Num(num) => write!(f, "{}", num),
+            Value::Function(Function::SaftFunction(..)) => write!(f, "<function>"),
+            Value::Function(Function::NativeFunction(..)) => write!(f, "<builtin function>"),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Num {
+    Bool(bool),
+    Int(i64),
+    Float(f64),
+}
+
+impl std::fmt::Display for Num {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Num::Bool(true) => write!(f, "true"),
+            Num::Bool(false) => write!(f, "false"),
+            Num::Int(v) => write!(f, "{}", v),
+            Num::Float(v) => write!(f, "{:?}", v),
+        }
+    }
+}
+
+fn bin_promote(lhs: &Num, rhs: &Num) -> (Num, Num) {
+    match (lhs, rhs) {
+        (Num::Int(_), Num::Int(_)) | (Num::Float(_), Num::Float(_)) => (lhs.clone(), rhs.clone()),
+
+        (Num::Bool(a), Num::Bool(b)) => (Num::Int(*a as i64), Num::Int(*b as i64)),
+
+        (Num::Int(_), Num::Bool(b)) => (lhs.clone(), Num::Int(*b as i64)),
+        (Num::Float(_), Num::Bool(b)) => (lhs.clone(), Num::Float(*b as i64 as f64)),
+        (Num::Float(_), Num::Int(b)) => (lhs.clone(), Num::Float(*b as f64)),
+
+        (Num::Int(a), Num::Float(_)) => (Num::Float(*a as f64), rhs.clone()),
+        (Num::Bool(a), Num::Float(_)) => (Num::Float(*a as i64 as f64), rhs.clone()),
+        (Num::Bool(a), Num::Int(_)) => (Num::Int(*a as i64), rhs.clone()),
+    }
+}
+
+impl Num {
+    pub fn add(&self, rhs: impl Borrow<Num>) -> Num {
+        match bin_promote(self, rhs.borrow()) {
+            (Num::Int(a), Num::Int(b)) => Num::Int(a + b),
+            (Num::Float(a), Num::Float(b)) => Num::Float(a + b),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn sub(&self, rhs: impl Borrow<Num>) -> Num {
+        match bin_promote(self, rhs.borrow()) {
+            (Num::Int(a), Num::Int(b)) => Num::Int(a - b),
+            (Num::Float(a), Num::Float(b)) => Num::Float(a - b),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn mul(&self, rhs: impl Borrow<Num>) -> Num {
+        match bin_promote(self, rhs.borrow()) {
+            (Num::Int(a), Num::Int(b)) => Num::Int(a * b),
+            (Num::Float(a), Num::Float(b)) => Num::Float(a * b),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn div(&self, rhs: impl Borrow<Num>) -> Num {
+        match bin_promote(self, rhs.borrow()) {
+            (Num::Int(a), Num::Int(b)) => Num::Float(a as f64 / b as f64),
+            (Num::Float(a), Num::Float(b)) => Num::Float(a as f64 / b as f64),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn pow(&self, rhs: impl Borrow<Num>) -> Num {
+        match bin_promote(self, rhs.borrow()) {
+            (Num::Int(a), Num::Int(b)) => Num::Int(a.pow(b as u32)),
+            (Num::Float(a), Num::Float(b)) => Num::Float(a.powf(b)),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn neg(&self) -> Num {
+        match self {
+            Num::Bool(a) => Num::Int(-(*a as i64)),
+            Num::Int(a) => Num::Int(-*a),
+            Num::Float(a) => Num::Float(-*a),
+        }
+    }
 }
 
 impl Value {
     pub fn type_name(&self) -> String {
-        use Value::*;
         match self {
-            Nil => "nil".into(),
-            Integer(..) => "integer".into(),
-            Float(..) => "float".into(),
-            Function(..) => "function".into(),
+            Value::Nil => "nil".into(),
+            Value::Num(Num::Bool(_)) => "bool".into(),
+            Value::Num(Num::Int(_)) => "int".into(),
+            Value::Num(Num::Float(_)) => "float".into(),
+            Value::Function(..) => "function".into(),
         }
     }
 }
@@ -44,18 +137,26 @@ pub struct NativeFuncData {
 }
 
 pub trait Cast<T> {
-    fn cast(&self) -> Result<T, Error>;
+    fn cast(&self) -> Result<T, Error> {
+        self.cast_maybe_spanned(None)
+    }
+
+    fn cast_spanned(&self, span: Span) -> Result<T, Error> {
+        self.cast_maybe_spanned(Some(span))
+    }
+
+    fn cast_maybe_spanned(&self, span: Option<Span>) -> Result<T, Error>;
 }
 
 impl From<f64> for Value {
     fn from(value: f64) -> Self {
-        Value::Float(value)
+        Value::Num(Num::Float(value))
     }
 }
 
 impl From<i64> for Value {
     fn from(value: i64) -> Self {
-        Value::Integer(value)
+        Value::Num(Num::Int(value))
     }
 }
 
@@ -65,13 +166,19 @@ impl From<()> for Value {
     }
 }
 
+impl From<Num> for Value {
+    fn from(value: Num) -> Self {
+        Value::Num(value)
+    }
+}
+
 impl Cast<f64> for Value {
-    fn cast(&self) -> Result<f64, Error> {
+    fn cast_maybe_spanned(&self, span: Option<Span>) -> Result<f64, Error> {
         match self {
-            Value::Float(f) => Ok(*f),
+            Value::Num(Num::Float(f)) => Ok(*f),
             _ => Err(Error::Exotic {
                 message: "Cannot cast".into(),
-                span: None,
+                span,
                 note: None,
             }),
         }
@@ -79,12 +186,12 @@ impl Cast<f64> for Value {
 }
 
 impl Cast<i64> for Value {
-    fn cast(&self) -> Result<i64, Error> {
+    fn cast_maybe_spanned(&self, span: Option<Span>) -> Result<i64, Error> {
         match self {
-            Value::Integer(i) => Ok(*i),
+            Value::Num(Num::Int(i)) => Ok(*i),
             _ => Err(Error::Exotic {
                 message: "Cannot cast".into(),
-                span: None,
+                span,
                 note: None,
             }),
         }
@@ -92,11 +199,24 @@ impl Cast<i64> for Value {
 }
 
 impl Cast<Value> for Value {
-    fn cast(&self) -> Result<Value, Error> {
+    fn cast_maybe_spanned(&self, _span: Option<Span>) -> Result<Value, Error> {
         Ok(self.clone())
     }
 }
 
-pub trait NativeFunc: std::fmt::Debug {
+impl Cast<Num> for Value {
+    fn cast_maybe_spanned(&self, span: Option<Span>) -> Result<Num, Error> {
+        match self {
+            Value::Num(num) => Ok(num.clone()),
+            _ => Err(Error::Exotic {
+                message: "Cannot cast".into(),
+                span,
+                note: None,
+            }),
+        }
+    }
+}
+
+pub trait NativeFunc {
     fn data() -> NativeFuncData;
 }
