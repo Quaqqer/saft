@@ -44,7 +44,20 @@ impl<'a> Lexer<'a> {
     pub fn next(&mut self) -> Spanned<Token> {
         use Token as T;
 
+        loop {
+            let start = self.cursor.offset();
+
+            self.cursor.eat_while(|c| c.is_whitespace());
+            if Self::eat_chars(&mut self.cursor, "//") {
+                self.cursor.eat_until(|c| c == '\n');
+            }
+
+            if self.cursor.offset() == start {
+                break;
+            };
+        }
         self.cursor.eat_while(|c| c.is_whitespace());
+
         self.cursor.restart();
 
         let mut cur = self.cursor.clone();

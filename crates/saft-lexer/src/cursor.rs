@@ -54,12 +54,29 @@ impl<'a> Cursor<'a> {
         while self.eat(&f) {}
     }
 
+    pub fn eat_until<F>(&mut self, f: F)
+    where
+        F: Fn(char) -> bool,
+    {
+        loop {
+            let Some(c) = self.peek() else { break };
+            self.advance();
+            if f(c) {
+                break;
+            };
+        }
+    }
+
     pub fn advance(&mut self) {
         self.iter.next().expect("Not allowed to advance beyond end");
     }
 
     pub fn span(&self) -> Span {
         Span::new(self.start..self.iter.offset())
+    }
+
+    pub fn offset(&self) -> usize {
+        self.iter.offset()
     }
 
     pub fn str(&self) -> &'a str {
