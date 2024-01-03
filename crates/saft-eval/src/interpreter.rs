@@ -265,9 +265,7 @@ impl<IO: InterpreterIO> Interpreter<IO> {
                     }
                 }
             }
-            Expr::Neg(expr) => {
-                Value::Num(Cast::<Num>::cast(&self.eval_expr(expr.as_ref())?)?.neg())
-            }
+            Expr::Neg(expr) => Value::Num(Cast::<Num>::cast(self.eval_expr(expr.as_ref())?)?.neg()),
         }))
     }
 }

@@ -39,9 +39,9 @@ fn repr(val: Value) -> String {
 }
 
 #[native_function]
-fn read(fname: String) -> Result<String, Exception> {
-    std::fs::read_to_string(&fname)
-        .map_err(|_| exotic!(format!("Could not open file '{}'", &fname)))
+fn read(fname: Spanned<String>) -> Result<String, Exception> {
+    std::fs::read_to_string(&fname.v)
+        .map_err(|_| exotic!(format!("Could not open file '{}'", &fname.v)))
 }
 
 pub fn add_natives(env: &mut Env) {

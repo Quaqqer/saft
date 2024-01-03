@@ -161,10 +161,6 @@ pub struct NativeFuncData {
     pub f: fn(Vec<Spanned<Value>>) -> Result<Value, ControlFlow>,
 }
 
-pub trait Cast<T> {
-    fn cast(&self) -> Result<T, ControlFlow>;
-}
-
 impl From<f64> for Value {
     fn from(value: f64) -> Self {
         Value::Num(Num::Float(value))
@@ -209,46 +205,61 @@ impl<V: Into<Value>, C: Into<ControlFlow>> From<Result<V, C>> for NativeRes {
     }
 }
 
-impl Cast<f64> for Spanned<Value> {
-    fn cast(&self) -> Result<f64, ControlFlow> {
-        match &self.v {
-            Value::Num(Num::Float(f)) => Ok(*f),
-            _ => Err(cast_error!(self, "float")),
-        }
-    }
+pub trait Cast<T> {
+    fn cast(self) -> Result<T, ControlFlow>;
 }
 
-impl Cast<i64> for Spanned<Value> {
-    fn cast(&self) -> Result<i64, ControlFlow> {
-        match &self.v {
-            Value::Num(Num::Int(i)) => Ok(*i),
-             _=> Err(cast_error!(self, "integer")),
+macro_rules! cast_t {
+    ($match:expr, $ty:ty) => {
+        impl Cast<$ty> for Spanned<Value> {
+            fn cast(self) -> Result<$ty, ControlFlow> {
+                $match(self)
+            }
         }
-    }
+
+        impl Cast<Spanned<$ty>> for Spanned<Value> {
+            fn cast(self) -> Result<Spanned<$ty>, ControlFlow> {
+                Ok(self.s.clone().spanned($match(self)?))
+            }
+        }
+    };
 }
 
-impl Cast<Num> for Spanned<Value> {
-    fn cast(&self) -> Result<Num, ControlFlow> {
-        match &self.v {
-            Value::Num(num) => Ok(num.clone()),
-            _ => Err(cast_error!(self, "numeric")),
-        }
-    }
+cast_t! {
+    |sv: Spanned<Value>| Ok::<_, ControlFlow>(sv.v),
+    Value
 }
 
-impl Cast<String> for Spanned<Value> {
-    fn cast(&self) -> Result<String, ControlFlow> {
-        match &self.v {
-            Value::String(s) => Ok(s.clone()),
-            _ => Err(cast_error!(self, "string")),
-        }
-    }
+cast_t! {
+    |sv: Spanned<Value>| match sv.v {
+        Value::String(s) => Ok::<_, ControlFlow>(s),
+        _ => Err(cast_error!(sv, "string")),
+    },
+    String
 }
 
-impl<T: Clone> Cast<T> for Spanned<T> {
-    fn cast(&self) -> Result<T, ControlFlow> {
-        Ok(self.v.clone())
-    }
+cast_t! {
+    |sv: Spanned<Value>| match sv.v {
+        Value::Num(n) => Ok::<_, ControlFlow>(n),
+        _ => Err(cast_error!(sv, "numeric")),
+    },
+    Num
+}
+
+cast_t! {
+    |sv: Spanned<Value>| match sv.v {
+        Value::Num(Num::Int(i)) => Ok::<_, ControlFlow>(i),
+        _ => Err(cast_error!(sv, "integer")),
+    },
+    i64
+}
+
+cast_t! {
+    |sv: Spanned<Value>| match sv.v {
+        Value::Num(Num::Float(f)) => Ok::<_, ControlFlow>(f),
+        _ => Err(cast_error!(sv, "float")),
+    },
+    f64
 }
 
 pub trait NativeFunc {
