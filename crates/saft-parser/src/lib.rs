@@ -1,5 +1,7 @@
 #![feature(let_chains)]
 
+use std::collections::VecDeque;
+
 use ast::{Expr, Item, Module, Statement};
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use saft_ast as ast;
@@ -39,27 +41,36 @@ impl Error {
 
 pub struct Parser<'a> {
     lexer: Lexer<'a>,
+    lookahead: VecDeque<Spanned<Token>>,
 }
 
 impl<'a> Parser<'a> {
     pub fn new(s: &'a str) -> Self {
         Self {
             lexer: Lexer::new(s),
+            lookahead: VecDeque::new(),
         }
     }
+
     pub fn parse_file(&'a mut self) -> Result<ast::Module, Error> {
         let mut stmts = Vec::<Spanned<ast::Statement>>::new();
 
-        while self.lexer.peek().v != Token::Eof {
+        while !self.try_eat(Token::Eof) {
             stmts.push(self.parse_statement()?);
-            self.eat(Token::Semicolon)?;
         }
 
         Ok(Module { stmts })
     }
 
+    fn next(&mut self) -> Spanned<Token> {
+        let t = self.peek();
+        self.advance();
+        t
+    }
+
     fn eat(&mut self, t: Token) -> Result<Span, Error> {
-        let st = self.lexer.next();
+        let st = self.peek();
+
         match st.v {
             v if v == t => Ok(st.s),
             _ => Err(Error::UnexpectedToken {
@@ -70,9 +81,13 @@ impl<'a> Parser<'a> {
     }
 
     fn eat_ident(&mut self) -> Result<Spanned<String>, Error> {
-        let st = self.lexer.next();
-        match &st.v {
-            Token::Identifier(ident) => Ok(st.map(|_| ident.clone())),
+        let st = self.peek();
+
+        match st.v {
+            Token::Identifier(ident) => {
+                self.advance();
+                Ok(st.s.spanned(ident))
+            }
             _ => Err(Error::UnexpectedToken {
                 got: st,
                 expected: Token::Identifier("".into()).describe().into(),
@@ -81,19 +96,42 @@ impl<'a> Parser<'a> {
     }
 
     fn try_eat(&mut self, t: Token) -> bool {
-        let st = self.lexer.peek();
+        let st = self.peek();
+
         match st.v {
             v if v == t => {
-                self.eat(t).unwrap();
+                self.eat(t).expect("Was peeked, should not happen");
                 true
             }
             _ => false,
         }
     }
 
+    fn advance(&mut self) {
+        if self.lookahead.len() > 0 {
+            self.lookahead.pop_front();
+        } else {
+            let _ = self.lexer.next();
+        }
+    }
+
+    fn peek(&mut self) -> Spanned<Token> {
+        self.peek_n(1)
+    }
+
+    fn peek_n(&mut self, n: usize) -> Spanned<Token> {
+        assert!(n > 0);
+
+        while self.lookahead.len() < n {
+            self.lookahead.push_back(self.lexer.next());
+        }
+
+        self.lookahead[n - 1].clone()
+    }
+
     pub fn parse_single_statment(&mut self) -> Result<Spanned<ast::Statement>, Error> {
         let s = self.parse_statement()?;
-        let next = self.lexer.next();
+        let next = self.next();
 
         match &next.v {
             Token::Eof => Ok(s),
@@ -109,9 +147,10 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_statement(&mut self) -> Result<Spanned<ast::Statement>, Error> {
-        let st = self.lexer.peek();
+        let st = self.peek();
+
         match st.v {
-            Token::Identifier(_) if self.lexer.peek_n(2).v == Token::ColonEqual => {
+            Token::Identifier(_) if self.peek_n(2).v == Token::ColonEqual => {
                 let ident = self.eat_ident().expect("Already peeked");
                 self.eat(Token::ColonEqual).expect("Already peeked");
                 let expr = self.parse_expr()?;
@@ -149,7 +188,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_primary_expr(&mut self) -> Result<Spanned<Expr>, Error> {
-        let st = self.lexer.next();
+        let st = self.next();
         match st.v {
             Token::Identifier(ident) => Ok(Spanned::new(
                 Expr::Var(Spanned::new(ident.to_string(), st.s.clone())),
@@ -187,7 +226,7 @@ impl<'a> Parser<'a> {
     fn parse_precedence(&mut self, min_prec: i32) -> Result<Spanned<Expr>, Error> {
         let mut expr = self.parse_primary_expr()?;
 
-        while let Some((post_prec, post_rule)) = Self::post_rule(&self.lexer.peek().v)
+        while let Some((post_prec, post_rule)) = Self::post_rule(&self.peek().v)
             && min_prec <= post_prec
         {
             expr = post_rule(expr, self)?;
@@ -208,7 +247,7 @@ impl<'a> Parser<'a> {
                 Some((
                     $prec,
                     Box::new(|lhs, parser| {
-                        parser.lexer.next();
+                        parser.next();
                         let next_prec = if $left_assoc { $prec + 1 } else { $prec };
                         let rhs = parser.parse_precedence(next_prec)?;
                         let s = lhs.s.join(&rhs.s);
@@ -232,7 +271,7 @@ impl<'a> Parser<'a> {
 
                     let mut arguments = Vec::new();
 
-                    while parser.lexer.peek().v != Token::RParen {
+                    while parser.peek().v != Token::RParen {
                         let arg = parser.parse_expr()?;
                         arguments.push(arg);
 
@@ -259,7 +298,7 @@ impl<'a> Parser<'a> {
         let mut params = Vec::new();
 
         self.eat(Token::LParen)?;
-        while self.lexer.peek().v != Token::RParen {
+        while self.peek().v != Token::RParen {
             let param = self.eat_ident()?;
             params.push(param);
 
@@ -273,7 +312,7 @@ impl<'a> Parser<'a> {
 
         let mut body = Vec::new();
 
-        while self.lexer.peek().v != Token::RBrace {
+        while self.peek().v != Token::RBrace {
             body.push(self.parse_statement()?);
         }
 
@@ -294,6 +333,7 @@ impl<'a> Parser<'a> {
 mod test {
     use saft_ast::Expr;
     use saft_common::span::{spanned, Spanned};
+    use saft_lexer::token::Token;
 
     use crate::Parser;
 
@@ -301,8 +341,18 @@ mod test {
         let res = Parser::new(s).parse_expr().unwrap();
         assert_eq!(&res, expected);
     }
+
     #[test]
-    fn test_precedence() {
+    fn lookahead() {
+        let mut parser = Parser::new("a + b + c");
+        assert_eq!(parser.peek(), spanned(Token::Identifier("a".into()), 0..1));
+        assert_eq!(parser.peek_n(2), spanned(Token::Plus, 2..3));
+        parser.eat_ident().unwrap();
+        assert_eq!(parser.peek(), spanned(Token::Plus, 2..3));
+    }
+
+    #[test]
+    fn precedence() {
         test_expr(
             "a + b + c",
             &spanned(
@@ -339,7 +389,7 @@ mod test {
     }
 
     #[test]
-    fn test_associativity() {
+    fn associativity() {
         test_expr(
             "a + b + c",
             &spanned(

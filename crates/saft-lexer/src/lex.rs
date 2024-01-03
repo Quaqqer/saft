@@ -1,12 +1,11 @@
-use std::{collections::VecDeque, str::CharIndices};
+use crate::cursor::Cursor;
 
-use saft_common::span::{Span, Spanned};
+use saft_common::span::Spanned;
 
 use crate::token::Token;
 
 pub struct Lexer<'a> {
     cursor: Cursor<'a>,
-    lookahead: VecDeque<Spanned<Token>>,
 }
 
 macro_rules! mktoken {
@@ -22,82 +21,10 @@ macro_rules! eat_token {
     }};
 }
 
-#[derive(Clone, Debug)]
-struct Cursor<'a> {
-    start: usize,
-    src: &'a str,
-    iter: CharIndices<'a>,
-}
-
-impl<'a> Cursor<'a> {
-    pub fn peek(&self) -> Option<char> {
-        self.iter.clone().peekable().peek().map(|(_, c)| c).cloned()
-    }
-
-    pub fn peek_n(&self, n: usize) -> Option<char> {
-        let mut iter = self.iter.clone();
-
-        for _ in 0..n - 1 {
-            if iter.next().is_none() {
-                return None;
-            }
-        }
-        iter.next().map(|(_, c)| c)
-    }
-
-    pub fn eat_char(&mut self, c: char) -> bool {
-        self.eat(|cc| cc == c)
-    }
-
-    pub fn eat<F>(&mut self, f: F) -> bool
-    where
-        F: Fn(char) -> bool,
-    {
-        let eat = self.peek().map_or(false, |c| f(c));
-        if eat {
-            // Eat the char
-            self.advance();
-        }
-        eat
-    }
-
-    pub fn eat_while<F>(&mut self, f: F)
-    where
-        F: Fn(char) -> bool,
-    {
-        loop {
-            if !self.eat(&f) {
-                break;
-            }
-        }
-    }
-
-    pub fn advance(&mut self) {
-        self.iter.next().expect("Not allowed to advance beyond end");
-    }
-
-    pub fn span(&self) -> Span {
-        Span::new(self.start..self.iter.offset())
-    }
-
-    pub fn str(&self) -> &'a str {
-        &self.src[self.span().r]
-    }
-
-    pub fn restart(&mut self) {
-        self.start = self.iter.offset();
-    }
-}
-
 impl<'a> Lexer<'a> {
     pub fn new(src: &'a str) -> Self {
         Self {
-            cursor: Cursor {
-                src,
-                iter: src.char_indices(),
-                start: 0,
-            },
-            lookahead: VecDeque::new(),
+            cursor: Cursor::new(src),
         }
     }
 
@@ -115,12 +42,6 @@ impl<'a> Lexer<'a> {
     }
 
     pub fn next(&mut self) -> Spanned<Token> {
-        self.lookahead
-            .pop_front()
-            .unwrap_or_else(|| self.advance_token())
-    }
-
-    fn advance_token(&mut self) -> Spanned<Token> {
         use Token as T;
 
         self.cursor.eat_while(|c| c.is_whitespace());
@@ -176,19 +97,6 @@ impl<'a> Lexer<'a> {
         self.cursor = cur;
 
         res
-    }
-
-    pub fn peek(&mut self) -> Spanned<Token> {
-        self.peek_n(1)
-    }
-
-    pub fn peek_n(&mut self, n: usize) -> Spanned<Token> {
-        while self.lookahead.len() < n {
-            let next_token = self.advance_token();
-            self.lookahead.push_back(next_token);
-        }
-
-        self.lookahead[n - 1].clone()
     }
 
     fn is_delimiter(c: char) -> bool {
@@ -286,15 +194,6 @@ mod test {
                 spanned(T::Identifier("_hej123".into()), 41..48),
             ],
         )
-    }
-
-    #[test]
-    fn lookahead() {
-        let mut lexer = Lexer::new("hej 123 456.789");
-        assert_eq!(lexer.peek_n(3), spanned(T::Float(456.789), 8..15));
-        assert_eq!(lexer.next(), spanned(T::Identifier("hej".into()), 0..3));
-        assert_eq!(lexer.peek_n(2), spanned(T::Float(456.789), 8..15));
-        assert_eq!(lexer.lookahead.len(), 2);
     }
 
     #[test]

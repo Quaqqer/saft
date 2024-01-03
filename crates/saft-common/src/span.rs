@@ -13,6 +13,10 @@ impl Span {
     pub fn join(&self, other: &Span) -> Span {
         Span::new(usize::min(self.r.start, other.r.start)..usize::max(self.r.end, other.r.end))
     }
+
+    pub fn spanned<T>(&self, v: T) -> Spanned<T> {
+        Spanned::new(v, self.clone())
+    }
 }
 
 pub fn span(r: Range<usize>) -> Span {
