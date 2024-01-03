@@ -34,7 +34,7 @@ fn main() {
             }
 
             let s = fs::read_to_string(&path).expect("Could not read file");
-            let mut interpreter = Interpreter::new(StandardIO::new());
+            let mut interpreter = Interpreter::new(StandardIO::default());
             interpret_module(
                 &mut interpreter,
                 path.file_name().unwrap().to_str().unwrap(),
@@ -60,7 +60,7 @@ fn repl() {
 
     let _ = rl.load_history(&history_file);
 
-    let mut interpreter = Interpreter::new(StandardIO::new());
+    let mut interpreter = Interpreter::new(StandardIO::default());
 
     loop {
         let readline = rl.readline(">> ");

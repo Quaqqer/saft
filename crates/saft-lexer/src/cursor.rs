@@ -24,9 +24,7 @@ impl<'a> Cursor<'a> {
         let mut iter = self.iter.clone();
 
         for _ in 0..n - 1 {
-            if iter.next().is_none() {
-                return None;
-            }
+            iter.next()?;
         }
         iter.next().map(|(_, c)| c)
     }
@@ -39,7 +37,7 @@ impl<'a> Cursor<'a> {
     where
         F: Fn(char) -> bool,
     {
-        let eat = self.peek().map_or(false, |c| f(c));
+        let eat = self.peek().map_or(false, f);
         if eat {
             // Eat the char
             self.advance();

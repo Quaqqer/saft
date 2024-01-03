@@ -14,7 +14,7 @@
       in {
         devShells.default = pkgs.mkShell {
           packages = [
-            (fenixPkgs.complete.withComponents [ "cargo" "rustc" "rustfmt" ])
+            (fenixPkgs.complete.withComponents [ "cargo" "rustc" "rustfmt" "clippy" ])
             # fenixPkgs.rust-analyzer
           ];
         };

@@ -1,7 +1,4 @@
-use crate::{
-    cast_error,
-    interpreter::{ControlFlow, Exception},
-};
+use crate::interpreter::ControlFlow;
 use std::{borrow::Borrow, rc::Rc};
 
 use saft_ast::Statement;
@@ -151,7 +148,7 @@ impl Num {
     pub fn div(&self, rhs: impl Borrow<Num>) -> Num {
         match bin_promote(self, rhs.borrow()) {
             (Num::Int(a), Num::Int(b)) => Num::Float(a as f64 / b as f64),
-            (Num::Float(a), Num::Float(b)) => Num::Float(a as f64 / b as f64),
+            (Num::Float(a), Num::Float(b)) => Num::Float(a / b),
             _ => unreachable!(),
         }
     }

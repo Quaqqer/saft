@@ -16,7 +16,7 @@ mod prec {
     pub const UNARY: i32 = 4;
     pub const EXP: i32 = 5;
     pub const CALL: i32 = 6;
-    pub const PRIMARY: i32 = 5;
+    pub const _PRIMARY: i32 = 5;
 }
 
 #[derive(Clone, Debug)]
@@ -74,7 +74,7 @@ impl<'a> Parser<'a> {
             }
             _ => Err(Error::UnexpectedToken {
                 got: st,
-                expected: t.describe().into(),
+                expected: t.describe(),
             }),
         }
     }
@@ -89,7 +89,7 @@ impl<'a> Parser<'a> {
             }
             _ => Err(Error::UnexpectedToken {
                 got: st,
-                expected: Token::Identifier("".into()).describe().into(),
+                expected: Token::Identifier("".into()).describe(),
             }),
         }
     }
@@ -107,7 +107,7 @@ impl<'a> Parser<'a> {
     }
 
     fn advance(&mut self) {
-        if self.lookahead.len() > 0 {
+        if !self.lookahead.is_empty() {
             self.lookahead.pop_front();
         } else {
             let _ = self.lexer.next();
@@ -267,6 +267,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Postfix and infix rules
+    #[allow(clippy::type_complexity)]
     fn post_rule(
         t: &Token,
     ) -> Option<(

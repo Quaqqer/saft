@@ -99,20 +99,15 @@ pub trait InterpreterIO {
     }
 }
 
+#[derive(Default)]
 pub struct StandardIO {}
-
-impl StandardIO {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
 
 impl InterpreterIO for StandardIO {}
 
 impl<IO: InterpreterIO> Interpreter<IO> {
     pub fn new(io: IO) -> Self {
         Self {
-            env: Env::new(),
+            env: Env::default(),
             io,
         }
     }
@@ -432,14 +427,6 @@ pub struct Env {
 }
 
 impl Env {
-    pub fn new() -> Self {
-        let mut env = Self {
-            scopes: vec![HashMap::new()],
-        };
-        add_natives(&mut env);
-        env
-    }
-
     fn lookup(&self, sident: &Spanned<Ident>) -> Result<Value, ControlFlow> {
         for scope in self.scopes.iter().rev() {
             if let Some(v) = scope.get(&sident.v) {
@@ -460,16 +447,23 @@ impl Env {
 
     pub fn assign(&mut self, sident: &Spanned<Ident>, v: Value) -> Result<(), ControlFlow> {
         for scope in self.scopes.iter_mut().rev() {
-            match scope.get_mut(&sident.v) {
-                Some(r) => {
-                    *r = v.clone();
-                    return Ok(());
-                }
-                None => {}
+            if let Some(r) = scope.get_mut(&sident.v) {
+                *r = v.clone();
+                return Ok(());
             }
         }
 
         Err(unresolved_error!(sident.v, sident.s))
+    }
+}
+
+impl Default for Env {
+    fn default() -> Self {
+        let mut env = Self {
+            scopes: vec![HashMap::new()],
+        };
+        add_natives(&mut env);
+        env
     }
 }
 

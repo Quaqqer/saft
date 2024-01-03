@@ -20,7 +20,7 @@ pub fn native_function(_attr: TokenStream, item: TokenStream) -> TokenStream {
     fn_.sig.ident = inner.clone();
     let n_params = fn_.sig.inputs.len();
 
-    let arg_tys = fn_.sig.inputs.iter().map(|input| parse_param_ty(input));
+    let arg_tys = fn_.sig.inputs.iter().map(parse_param_ty);
     let arg_i = 0..arg_tys.len();
 
     quote! {

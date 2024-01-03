@@ -41,6 +41,7 @@ impl<'a> Lexer<'a> {
         true
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> Spanned<Token> {
         use Token as T;
 
