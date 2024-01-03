@@ -237,6 +237,15 @@ impl<IO: InterpreterIO> Interpreter<IO> {
                 match fun.v {
                     Value::Function(Function::SaftFunction(SaftFunction { params, body })) => {
                         match self.scoped(|interpreter| {
+                            if arg_vals.len() != params.len() {
+                                return Err(Exception::ArgMismatch {
+                                    span: s.clone(),
+                                    expected: params.len(),
+                                    got: args.len(),
+                                }
+                                .into());
+                            }
+
                             for (arg_name, arg) in params.iter().zip(arg_vals.iter()) {
                                 interpreter.env.declare(arg_name, arg.v.clone());
                             }
