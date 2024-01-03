@@ -34,6 +34,28 @@ pub enum Num {
     Float(f64),
 }
 
+pub enum ValueType {
+    Nil,
+    Bool,
+    Int,
+    Float,
+    Function,
+    String,
+}
+
+impl ValueType {
+    pub fn name(&self) -> &str {
+        match self {
+            ValueType::Nil => "nil",
+            ValueType::Bool => "bool",
+            ValueType::Int => "int",
+            ValueType::Float => "float",
+            ValueType::Function => "function",
+            ValueType::String => "string",
+        }
+    }
+}
+
 impl Num {
     pub fn repr(&self) -> String {
         match self {
@@ -131,14 +153,16 @@ impl Num {
 }
 
 impl Value {
-    pub fn type_name(&self) -> String {
+    pub fn ty(&self) -> ValueType {
+        use Value as V;
+        use ValueType as T;
         match self {
-            Value::Nil => "nil".into(),
-            Value::Num(Num::Bool(_)) => "bool".into(),
-            Value::Num(Num::Int(_)) => "int".into(),
-            Value::Num(Num::Float(_)) => "float".into(),
-            Value::Function(..) => "function".into(),
-            Value::String(..) => "string".into(),
+            V::Nil => T::Nil,
+            V::Num(Num::Bool(_)) => T::Bool,
+            V::Num(Num::Int(_)) => T::Int,
+            V::Num(Num::Float(_)) => T::Float,
+            V::Function(..) => T::Function,
+            V::String(..) => T::String,
         }
     }
 }

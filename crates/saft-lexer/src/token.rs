@@ -11,6 +11,8 @@ pub enum Token {
     RParen,
     LBrace,
     RBrace,
+    LBracket,
+    RBracket,
     Comma,
     Semicolon,
 
@@ -57,6 +59,8 @@ impl Token {
             Semicolon => "';'".into(),
             String(s) => format!("string '{}'", s),
             Error(e) => format!("error '{}'", e),
+            LBracket => "'['".into(),
+            RBracket => "']'".into(),
         }
     }
 }

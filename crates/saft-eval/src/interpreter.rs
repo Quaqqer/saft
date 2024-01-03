@@ -45,7 +45,7 @@ macro_rules! cast_error {
             span: Some($got.s.clone()),
             note: Some(format!(
                 "Cannot cast {} into {}",
-                $got.v.type_name(),
+                $got.v.ty().name(),
                 $expected
             )),
         }
@@ -268,12 +268,50 @@ impl<IO: InterpreterIO> Interpreter<IO> {
                         return Err(exotic!(
                             "Cannot call non-function",
                             s,
-                            format!("Got type {}", fun.v.type_name())
+                            format!("Got type {}", fun.v.ty().name())
                         ))
                     }
                 }
             }
             Expr::Neg(expr) => Value::Num(Cast::<Num>::cast(self.eval_expr(expr.as_ref())?)?.neg()),
+            Expr::Index(expr, index) => {
+                let expr = self.eval_expr(expr.as_ref())?;
+                let index = self.eval_expr(index.as_ref())?;
+
+                match expr.v {
+                    Value::String(str) => match index.v {
+                        Value::Num(Num::Int(i)) => match str.get(i as usize..i as usize + 1) {
+                            Some(c) => Value::String(c.to_string()),
+                            None => {
+                                return Err(exotic!(
+                                    "Indexed out of bounds",
+                                    s,
+                                    format!(
+                                        "Got index {} and the size of the string is {}",
+                                        i,
+                                        str.len()
+                                    )
+                                ))
+                            }
+                        },
+                        v => {
+                            return Err(Exception::TypeError {
+                                span: s,
+                                note: format!("Cannot index into a string with {}", v.ty().name()),
+                            }
+                            .into())
+                        }
+                    },
+
+                    _ => {
+                        return Err(Exception::TypeError {
+                            span: s,
+                            note: format!("Cannot index into {}", expr.v.ty().name()),
+                        }
+                        .into())
+                    }
+                }
+            }
         }))
     }
 }

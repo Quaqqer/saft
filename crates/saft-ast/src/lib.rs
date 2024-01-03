@@ -36,6 +36,7 @@ pub enum Expr {
     Mul(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
     Div(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
     Pow(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
+    Index(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
 }
 
 impl Expr {
@@ -54,8 +55,9 @@ impl Expr {
             Pow(..) => "pow",
             Grouping(..) => "grouping",
             Call(..) => "call",
-            Neg(_) => "negation",
-            String(_) => "string",
+            Neg(..) => "negation",
+            String(..) => "string",
+            Index(..) => "index",
         }
     }
 }

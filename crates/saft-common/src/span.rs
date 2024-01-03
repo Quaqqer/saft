@@ -1,4 +1,4 @@
-use std::ops::Range;
+use std::{borrow::Borrow, ops::Range};
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Span {
@@ -10,8 +10,11 @@ impl Span {
         Self { r }
     }
 
-    pub fn join(&self, other: &Span) -> Span {
-        Span::new(usize::min(self.r.start, other.r.start)..usize::max(self.r.end, other.r.end))
+    pub fn join(&self, other: impl Borrow<Span>) -> Span {
+        Span::new(
+            usize::min(self.r.start, other.borrow().r.start)
+                ..usize::max(self.r.end, other.borrow().r.end),
+        )
     }
 
     pub fn spanned<T>(&self, v: T) -> Spanned<T> {

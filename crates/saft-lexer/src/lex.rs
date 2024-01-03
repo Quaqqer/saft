@@ -69,6 +69,9 @@ impl<'a> Lexer<'a> {
                 ')' => eat_token!(cur, T::RParen),
                 '{' => eat_token!(cur, T::LBrace),
                 '}' => eat_token!(cur, T::RBrace),
+                '[' => eat_token!(cur, T::LBracket),
+                ']' => eat_token!(cur, T::RBracket),
+
                 ',' => eat_token!(cur, T::Comma),
                 ';' => eat_token!(cur, T::Semicolon),
 

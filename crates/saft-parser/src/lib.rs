@@ -215,7 +215,7 @@ impl<'a> Parser<'a> {
                 let end = self.eat(Token::RParen)?;
                 Ok(Spanned::new(
                     Expr::Grouping(Box::new(inner)),
-                    start.join(&end),
+                    start.join(end),
                 ))
             }
             Token::Minus => {
@@ -294,9 +294,22 @@ impl<'a> Parser<'a> {
                     }
 
                     let end = parser.eat(Token::RParen)?;
-                    let s = lhs.s.join(&end);
+                    let s = lhs.s.join(end);
 
                     Ok(Spanned::new(Expr::Call(Box::new(lhs), arguments), s))
+                }),
+            )),
+            Token::LBracket => Some((
+                prec::CALL,
+                Box::new(|lhs, parser| {
+                    parser.eat(Token::LBracket)?;
+                    let index = parser.parse_expr()?;
+                    let end = parser.eat(Token::RBracket)?;
+
+                    Ok(lhs
+                        .s
+                        .join(end)
+                        .spanned(Expr::Index(Box::new(lhs), Box::new(index))))
                 }),
             )),
             _ => None,
@@ -333,7 +346,7 @@ impl<'a> Parser<'a> {
                 params,
                 body,
             }),
-            start.join(&end),
+            start.join(end),
         ))
     }
 }
