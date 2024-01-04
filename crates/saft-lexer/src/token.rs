@@ -28,7 +28,19 @@ pub enum Token {
     Minus,
     Star,
     Slash,
+    SlashSlash,
     Caret,
+    Less,
+    LessEqual,
+    Greater,
+    GreaterEqual,
+    EqualEqual,
+    Bang,
+    BangEqual,
+    And,
+    Or,
+    True,
+    False,
 }
 
 impl Token {
@@ -61,6 +73,18 @@ impl Token {
             Error(e) => format!("error '{}'", e),
             LBracket => "'['".into(),
             RBracket => "']'".into(),
+            SlashSlash => "'//'".into(),
+            Less => "'<'".into(),
+            LessEqual => "'<='".into(),
+            Greater => "'>'".into(),
+            GreaterEqual => "'>='".into(),
+            EqualEqual => "'=='".into(),
+            BangEqual => "'!='".into(),
+            And => "'and'".into(),
+            Or => "'or'".into(),
+            Bang => "'!'".into(),
+            True => "'true'".into(),
+            False => "'false'".into(),
         }
     }
 }

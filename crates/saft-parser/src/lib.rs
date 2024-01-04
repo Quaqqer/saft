@@ -11,12 +11,16 @@ use saft_lexer::{lex::Lexer, token::Token};
 mod prec {
     pub const NONE: i32 = 0;
     pub const ASSIGN: i32 = 1;
-    pub const TERM: i32 = 2;
-    pub const FACTOR: i32 = 3;
-    pub const UNARY: i32 = 4;
-    pub const EXP: i32 = 5;
-    pub const CALL: i32 = 6;
-    pub const _PRIMARY: i32 = 5;
+    pub const OR: i32 = 2;
+    pub const AND: i32 = 3;
+    pub const EQUALITY: i32 = 4;
+    pub const COMPARISON: i32 = 5;
+    pub const TERM: i32 = 6;
+    pub const FACTOR: i32 = 7;
+    pub const UNARY: i32 = 8;
+    pub const EXP: i32 = 9;
+    pub const CALL: i32 = 10;
+    pub const _PRIMARY: i32 = 11;
 }
 
 #[derive(Clone, Debug)]
@@ -183,10 +187,12 @@ impl<'a> Parser<'a> {
             | Token::Integer(_)
             | Token::Nil
             | Token::String(_)
-            | Token::LBracket => {
+            | Token::LBracket
+            | Token::True
+            | Token::False
+            | Token::Bang => {
                 let expr = self.parse_expr()?;
-                let s = expr.s.clone();
-                Ok(Spanned::new(Statement::Expr(expr), s))
+                Ok(expr.s.clone().spanned(Statement::Expr(expr)))
             }
 
             Token::Fn => self.parse_fn(),
@@ -202,46 +208,54 @@ impl<'a> Parser<'a> {
     fn parse_primary_expr(&mut self) -> Result<Spanned<Expr>, Error> {
         let st = self.next();
         let start = st.s.clone();
+        use Token as T;
         match st.v {
-            Token::Identifier(ident) => Ok(Spanned::new(
+            T::Identifier(ident) => Ok(Spanned::new(
                 Expr::Var(Spanned::new(ident.to_string(), st.s.clone())),
                 st.s,
             )),
-            Token::Float(f) => Ok(Spanned::new(Expr::Float(f), st.s)),
-            Token::Integer(i) => Ok(Spanned::new(Expr::Integer(i), st.s)),
-            Token::Nil => Ok(Spanned::new(Expr::Nil, st.s)),
-            Token::String(s) => Ok(st.s.spanned(Expr::String(s))),
-            Token::LParen => {
+            T::Float(f) => Ok(Spanned::new(Expr::Float(f), st.s)),
+            T::Integer(i) => Ok(Spanned::new(Expr::Integer(i), st.s)),
+            T::Nil => Ok(Spanned::new(Expr::Nil, st.s)),
+            T::String(s) => Ok(st.s.spanned(Expr::String(s))),
+            T::LParen => {
                 let start = st.s;
                 let inner = self.parse_expr()?;
-                let end = self.eat(Token::RParen)?;
+                let end = self.eat(T::RParen)?;
                 Ok(Spanned::new(
                     Expr::Grouping(Box::new(inner)),
                     start.join(end),
                 ))
             }
-            Token::Minus => {
+            T::Minus => {
                 let expr = self.parse_precedence(prec::UNARY + 1)?;
                 let s = st.s.join(&expr.s);
                 Ok(Spanned::new(Expr::Neg(Box::new(expr)), s))
             }
-            Token::LBracket => {
+            T::Bang => {
+                let expr = self.parse_precedence(prec::UNARY + 1)?;
+                let s = st.s.join(&expr.s);
+                Ok(Spanned::new(Expr::Not(Box::new(expr)), s))
+            }
+            T::LBracket => {
                 let mut exprs = Vec::new();
                 loop {
-                    if self.peek().v == Token::RBracket {
+                    if self.peek().v == T::RBracket {
                         break;
                     }
 
                     exprs.push(self.parse_expr()?);
 
-                    if !self.try_eat(Token::Comma) {
+                    if !self.try_eat(T::Comma) {
                         break;
                     }
                 }
-                let end = self.eat(Token::RBracket)?;
+                let end = self.eat(T::RBracket)?;
                 let s = start.join(end);
                 Ok(s.spanned(Expr::Vec(exprs)))
             }
+            T::True => Ok(st.s.spanned(Expr::Bool(true))),
+            T::False => Ok(st.s.spanned(Expr::Bool(false))),
 
             _ => self.unexpected(st, "expression"),
         }
@@ -291,11 +305,27 @@ impl<'a> Parser<'a> {
 
         match t {
             Token::Equal => binop!(prec::ASSIGN, false, Expr::Assign),
+
+            Token::Or => binop!(prec::OR, false, Expr::Or),
+
+            Token::And => binop!(prec::AND, false, Expr::And),
+
+            Token::EqualEqual => binop!(prec::EQUALITY, false, Expr::Eq),
+            Token::BangEqual => binop!(prec::EQUALITY, false, Expr::Ne),
+
+            Token::Less => binop!(prec::COMPARISON, false, Expr::Lt),
+            Token::LessEqual => binop!(prec::COMPARISON, false, Expr::Le),
+            Token::Greater => binop!(prec::COMPARISON, false, Expr::Gt),
+            Token::GreaterEqual => binop!(prec::COMPARISON, false, Expr::Ge),
+
             Token::Plus => binop!(prec::TERM, true, Expr::Add),
             Token::Minus => binop!(prec::TERM, true, Expr::Sub),
+
             Token::Star => binop!(prec::FACTOR, true, Expr::Mul),
             Token::Slash => binop!(prec::FACTOR, true, Expr::Div),
+
             Token::Caret => binop!(prec::EXP, false, Expr::Pow),
+
             Token::LParen => Some((
                 prec::CALL,
                 Box::new(|lhs, parser| {

@@ -49,7 +49,7 @@ impl<'a> Lexer<'a> {
             let start = self.cursor.offset();
 
             self.cursor.eat_while(|c| c.is_whitespace());
-            if Self::eat_chars(&mut self.cursor, "//") {
+            if Self::eat_chars(&mut self.cursor, "#") {
                 self.cursor.eat_until(|c| c == '\n');
             }
 
@@ -76,12 +76,20 @@ impl<'a> Lexer<'a> {
                 ',' => eat_token!(cur, T::Comma),
                 ';' => eat_token!(cur, T::Semicolon),
 
+                '=' if Self::eat_chars(&mut cur, "==") => mktoken!(cur, T::EqualEqual),
                 '=' => eat_token!(cur, T::Equal),
+                '!' if Self::eat_chars(&mut cur, "!=") => mktoken!(cur, T::BangEqual),
+                '!' => eat_token!(cur, T::Bang),
                 '+' => eat_token!(cur, T::Plus),
                 '-' => eat_token!(cur, T::Minus),
                 '*' => eat_token!(cur, T::Star),
+                '/' if Self::eat_chars(&mut cur, "//") => mktoken!(cur, T::SlashSlash),
                 '/' => eat_token!(cur, T::Slash),
                 '^' => eat_token!(cur, T::Caret),
+                '<' if Self::eat_chars(&mut cur, "<=") => mktoken!(cur, T::LessEqual),
+                '<' => eat_token!(cur, T::Less),
+                '>' if Self::eat_chars(&mut cur, ">=") => mktoken!(cur, T::GreaterEqual),
+                '>' => eat_token!(cur, T::Greater),
 
                 ':' if Self::eat_chars(&mut cur, ":=") => mktoken!(cur, T::ColonEqual),
 
@@ -93,6 +101,10 @@ impl<'a> Lexer<'a> {
                         "nil" => mktoken!(cur, T::Nil),
                         "fn" => mktoken!(cur, T::Fn),
                         "return" => mktoken!(cur, T::Return),
+                        "and" => mktoken!(cur, T::And),
+                        "or" => mktoken!(cur, T::Or),
+                        "true" => mktoken!(cur, T::True),
+                        "false" => mktoken!(cur, T::False),
                         s => mktoken!(cur, T::Identifier(s.into())),
                     }
                 }

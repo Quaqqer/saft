@@ -20,23 +20,37 @@ pub enum Statement {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
-    Var(Spanned<Ident>),
-    Integer(i64),
-    Float(f64),
-    String(String),
     Nil,
+    Bool(bool),
+    Float(f64),
+    Integer(i64),
+    String(String),
+
+    Var(Spanned<Ident>),
     Grouping(Box<Spanned<Expr>>),
     Vec(Vec<Spanned<Expr>>),
 
-    Call(Box<Spanned<Expr>>, Vec<Spanned<Expr>>),
-
     Neg(Box<Spanned<Expr>>),
+    Not(Box<Spanned<Expr>>),
     Assign(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
     Add(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
     Sub(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
     Mul(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
     Div(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
+    IDiv(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
     Pow(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
+
+    And(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
+    Or(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
+
+    Lt(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
+    Le(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
+    Gt(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
+    Ge(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
+    Eq(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
+    Ne(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
+
+    Call(Box<Spanned<Expr>>, Vec<Spanned<Expr>>),
     Index(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
 }
 
@@ -60,6 +74,17 @@ impl Expr {
             String(..) => "string",
             Index(..) => "index",
             Vec(..) => "vec",
+            Bool(..) => "bool",
+            And(..) => "and",
+            Or(..) => "or",
+            Lt(..) => "less than",
+            Le(..) => "less or equal",
+            Gt(..) => "greater than",
+            Ge(..) => "greater or equal",
+            Eq(..) => "equal",
+            Ne(..) => "not equal",
+            IDiv(..) => "integer division",
+            Not(_) => "not",
         }
     }
 }

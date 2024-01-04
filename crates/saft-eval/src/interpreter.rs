@@ -265,6 +265,29 @@ impl Interpreter {
                     }
                 }
             }
+            Expr::IDiv(lhs, rhs) => {
+                let lhs = self.eval_expr(lhs.as_ref())?;
+                let rhs = self.eval_expr(rhs.as_ref())?;
+
+                match (&lhs.v, &rhs.v) {
+                    (Value::Num(a), Value::Num(b))
+                        if let Some(a) = a.cast_int()
+                            && let Some(b) = b.cast_int() =>
+                    {
+                        (a / b).into()
+                    }
+                    _ => {
+                        return Err(type_error!(
+                            format!(
+                                "Cannot integer divide values of types {} and {}",
+                                lhs.v.ty().name(),
+                                rhs.v.ty().name()
+                            ),
+                            s
+                        ))
+                    }
+                }
+            }
             Expr::Pow(lhs, rhs) => {
                 let lhs = self.eval_expr(lhs.as_ref())?;
                 let rhs = self.eval_expr(rhs.as_ref())?;
@@ -284,8 +307,8 @@ impl Interpreter {
                 }
             }
             Expr::Grouping(inner) => self.eval_expr(inner.as_ref())?.v,
-            Expr::Call(f, args) => {
-                let fun = self.eval_expr(f.as_ref())?;
+            Expr::Call(box f, args) => {
+                let fun = self.eval_expr(f)?;
                 let mut arg_vals = Vec::new();
 
                 for arg in args {
@@ -408,6 +431,160 @@ impl Interpreter {
                 }
 
                 Value::Vec(vals)
+            }
+            Expr::Bool(b) => Value::Num(Num::Bool(*b)),
+            Expr::And(box lhs, box rhs) => {
+                let lhs = self.eval_expr(lhs)?;
+                let rhs = self.eval_expr(rhs)?;
+
+                match (&lhs.v, &rhs.v) {
+                    (Value::Num(Num::Bool(a)), Value::Num(Num::Bool(b))) => (*a && *b).into(),
+                    _ => {
+                        return Err(type_error!(
+                            format!(
+                                "Cannot perform and operation between {} and {}",
+                                lhs.v.ty().name(),
+                                rhs.v.ty().name()
+                            ),
+                            s
+                        ))
+                    }
+                }
+            }
+            Expr::Or(box lhs, box rhs) => {
+                let lhs = self.eval_expr(lhs)?;
+                let rhs = self.eval_expr(rhs)?;
+
+                match (&lhs.v, &rhs.v) {
+                    (Value::Num(Num::Bool(a)), Value::Num(Num::Bool(b))) => (*a || *b).into(),
+                    _ => {
+                        return Err(type_error!(
+                            format!(
+                                "Cannot perform or operation between {} and {}",
+                                lhs.v.ty().name(),
+                                rhs.v.ty().name()
+                            ),
+                            s
+                        ))
+                    }
+                }
+            }
+            Expr::Lt(box lhs, box rhs) => {
+                let lhs = self.eval_expr(lhs)?;
+                let rhs = self.eval_expr(rhs)?;
+
+                match (&lhs.v, &rhs.v) {
+                    (Value::Num(a), Value::Num(b)) => a.lt(b).into(),
+                    _ => {
+                        return Err(type_error!(
+                            format!(
+                                "Cannot perform less than operation between {} and {}",
+                                lhs.v.ty().name(),
+                                rhs.v.ty().name()
+                            ),
+                            s
+                        ))
+                    }
+                }
+            }
+            Expr::Le(box lhs, box rhs) => {
+                let lhs = self.eval_expr(lhs)?;
+                let rhs = self.eval_expr(rhs)?;
+
+                match (&lhs.v, &rhs.v) {
+                    (Value::Num(a), Value::Num(b)) => a.le(b).into(),
+                    _ => {
+                        return Err(type_error!(
+                            format!(
+                                "Cannot perform less or equal operation between {} and {}",
+                                lhs.v.ty().name(),
+                                rhs.v.ty().name()
+                            ),
+                            s
+                        ))
+                    }
+                }
+            }
+            Expr::Gt(box lhs, box rhs) => {
+                let lhs = self.eval_expr(lhs)?;
+                let rhs = self.eval_expr(rhs)?;
+
+                match (&lhs.v, &rhs.v) {
+                    (Value::Num(a), Value::Num(b)) => a.gt(b).into(),
+                    _ => {
+                        return Err(type_error!(
+                            format!(
+                                "Cannot perform greater than operation between {} and {}",
+                                lhs.v.ty().name(),
+                                rhs.v.ty().name()
+                            ),
+                            s
+                        ))
+                    }
+                }
+            }
+            Expr::Ge(box lhs, box rhs) => {
+                let lhs = self.eval_expr(lhs)?;
+                let rhs = self.eval_expr(rhs)?;
+
+                match (&lhs.v, &rhs.v) {
+                    (Value::Num(a), Value::Num(b)) => a.ge(b).into(),
+                    _ => {
+                        return Err(type_error!(
+                            format!(
+                                "Cannot perform greater than operation between {} and {}",
+                                lhs.v.ty().name(),
+                                rhs.v.ty().name()
+                            ),
+                            s
+                        ))
+                    }
+                }
+            }
+
+            Expr::Eq(box lhs, box rhs) => {
+                let lhs = self.eval_expr(lhs)?;
+                let rhs = self.eval_expr(rhs)?;
+
+                match (&lhs.v, &rhs.v) {
+                    (Value::Num(a), Value::Num(b)) => a.eq(b).into(),
+                    _ => {
+                        return Err(type_error!(
+                            format!(
+                                "Cannot perform equality operation between {} and {}",
+                                lhs.v.ty().name(),
+                                rhs.v.ty().name()
+                            ),
+                            s
+                        ))
+                    }
+                }
+            }
+
+            Expr::Ne(box lhs, box rhs) => {
+                let lhs = self.eval_expr(lhs)?;
+                let rhs = self.eval_expr(rhs)?;
+
+                match (&lhs.v, &rhs.v) {
+                    (Value::Num(a), Value::Num(b)) => (!a.eq(b)).into(),
+                    _ => {
+                        return Err(type_error!(
+                            format!(
+                                "Cannot perform inequality operation between {} and {}",
+                                lhs.v.ty().name(),
+                                rhs.v.ty().name()
+                            ),
+                            s
+                        ))
+                    }
+                }
+            }
+            Expr::Not(box expr) => {
+                let v = self.eval_expr(expr)?;
+                Value::Num(Num::Bool(
+                    !(Cast::<bool>::cast(v.v.clone())
+                        .ok_or::<Exception>(cast_error!(v, "numeric"))?),
+                ))
             }
         }))
     }

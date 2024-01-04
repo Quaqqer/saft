@@ -41,6 +41,20 @@ impl Value {
             }
         }
     }
+
+    pub fn ty(&self) -> ValueType {
+        use Value as V;
+        use ValueType as T;
+        match self {
+            V::Nil => T::Nil,
+            V::Num(Num::Bool(_)) => T::Bool,
+            V::Num(Num::Int(_)) => T::Int,
+            V::Num(Num::Float(_)) => T::Float,
+            V::Function(..) => T::Function,
+            V::String(..) => T::String,
+            V::Vec(..) => T::Vec,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -87,40 +101,18 @@ impl Num {
     pub fn cast_float(&self) -> f64 {
         match self {
             Num::Bool(b) => *b as i64 as f64,
-            Num::Int(i) => *i as f64,
-            Num::Float(f) => *f,
+            n => n.cast_int().unwrap() as f64,
         }
     }
-}
 
-impl std::fmt::Display for Num {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    pub fn cast_int(&self) -> Option<i64> {
         match self {
-            Num::Bool(true) => write!(f, "true"),
-            Num::Bool(false) => write!(f, "false"),
-            Num::Int(v) => write!(f, "{}", v),
-            Num::Float(v) => write!(f, "{:?}", v),
+            Num::Int(i) => Some(*i),
+            Num::Bool(b) => Some(*b as i64),
+            _ => None,
         }
     }
-}
 
-fn bin_promote(lhs: &Num, rhs: &Num) -> (Num, Num) {
-    match (lhs, rhs) {
-        (Num::Int(_), Num::Int(_)) | (Num::Float(_), Num::Float(_)) => (lhs.clone(), rhs.clone()),
-
-        (Num::Bool(a), Num::Bool(b)) => (Num::Int(*a as i64), Num::Int(*b as i64)),
-
-        (Num::Int(_), Num::Bool(b)) => (lhs.clone(), Num::Int(*b as i64)),
-        (Num::Float(_), Num::Bool(b)) => (lhs.clone(), Num::Float(*b as i64 as f64)),
-        (Num::Float(_), Num::Int(b)) => (lhs.clone(), Num::Float(*b as f64)),
-
-        (Num::Int(a), Num::Float(_)) => (Num::Float(*a as f64), rhs.clone()),
-        (Num::Bool(a), Num::Float(_)) => (Num::Float(*a as i64 as f64), rhs.clone()),
-        (Num::Bool(a), Num::Int(_)) => (Num::Int(*a as i64), rhs.clone()),
-    }
-}
-
-impl Num {
     pub fn add(&self, rhs: impl Borrow<Num>) -> Num {
         match bin_promote(self, rhs.borrow()) {
             (Num::Int(a), Num::Int(b)) => Num::Int(a + b),
@@ -168,21 +160,72 @@ impl Num {
             Num::Float(a) => Num::Float(-*a),
         }
     }
+
+    pub fn le(&self, rhs: impl Borrow<Num>) -> bool {
+        match bin_promote(self, rhs.borrow()) {
+            (Num::Int(a), Num::Int(b)) => a <= b,
+            (Num::Float(a), Num::Float(b)) => a <= b,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn lt(&self, rhs: impl Borrow<Num>) -> bool {
+        match bin_promote(self, rhs.borrow()) {
+            (Num::Int(a), Num::Int(b)) => a < b,
+            (Num::Float(a), Num::Float(b)) => a < b,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn gt(&self, rhs: impl Borrow<Num>) -> bool {
+        match bin_promote(self, rhs.borrow()) {
+            (Num::Int(a), Num::Int(b)) => a > b,
+            (Num::Float(a), Num::Float(b)) => a > b,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn ge(&self, rhs: impl Borrow<Num>) -> bool {
+        match bin_promote(self, rhs.borrow()) {
+            (Num::Int(a), Num::Int(b)) => a >= b,
+            (Num::Float(a), Num::Float(b)) => a >= b,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn eq(&self, rhs: impl Borrow<Num>) -> bool {
+        match bin_promote(self, rhs.borrow()) {
+            (Num::Int(a), Num::Int(b)) => a == b,
+            (Num::Float(a), Num::Float(b)) => a == b,
+            _ => unreachable!(),
+        }
+    }
 }
 
-impl Value {
-    pub fn ty(&self) -> ValueType {
-        use Value as V;
-        use ValueType as T;
+impl std::fmt::Display for Num {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            V::Nil => T::Nil,
-            V::Num(Num::Bool(_)) => T::Bool,
-            V::Num(Num::Int(_)) => T::Int,
-            V::Num(Num::Float(_)) => T::Float,
-            V::Function(..) => T::Function,
-            V::String(..) => T::String,
-            V::Vec(..) => T::Vec,
+            Num::Bool(true) => write!(f, "true"),
+            Num::Bool(false) => write!(f, "false"),
+            Num::Int(v) => write!(f, "{}", v),
+            Num::Float(v) => write!(f, "{:?}", v),
         }
+    }
+}
+
+fn bin_promote(lhs: &Num, rhs: &Num) -> (Num, Num) {
+    match (lhs, rhs) {
+        (Num::Int(_), Num::Int(_)) | (Num::Float(_), Num::Float(_)) => (lhs.clone(), rhs.clone()),
+
+        (Num::Bool(a), Num::Bool(b)) => (Num::Int(*a as i64), Num::Int(*b as i64)),
+
+        (Num::Int(_), Num::Bool(b)) => (lhs.clone(), Num::Int(*b as i64)),
+        (Num::Float(_), Num::Bool(b)) => (lhs.clone(), Num::Float(*b as i64 as f64)),
+        (Num::Float(_), Num::Int(b)) => (lhs.clone(), Num::Float(*b as f64)),
+
+        (Num::Int(a), Num::Float(_)) => (Num::Float(*a as f64), rhs.clone()),
+        (Num::Bool(a), Num::Float(_)) => (Num::Float(*a as i64 as f64), rhs.clone()),
+        (Num::Bool(a), Num::Int(_)) => (Num::Int(*a as i64), rhs.clone()),
     }
 }
 
@@ -206,13 +249,19 @@ pub struct NativeFuncData {
 
 impl From<f64> for Value {
     fn from(value: f64) -> Self {
-        Value::Num(Num::Float(value))
+        Value::Num(value.into())
     }
 }
 
 impl From<i64> for Value {
     fn from(value: i64) -> Self {
-        Value::Num(Num::Int(value))
+        Value::Num(value.into())
+    }
+}
+
+impl From<bool> for Value {
+    fn from(value: bool) -> Self {
+        Value::Num(value.into())
     }
 }
 
@@ -231,6 +280,24 @@ impl From<Num> for Value {
 impl From<String> for Value {
     fn from(value: String) -> Self {
         Value::String(value)
+    }
+}
+
+impl From<bool> for Num {
+    fn from(value: bool) -> Self {
+        Num::Bool(value)
+    }
+}
+
+impl From<i64> for Num {
+    fn from(value: i64) -> Self {
+        Num::Int(value)
+    }
+}
+
+impl From<f64> for Num {
+    fn from(value: f64) -> Self {
+        Num::Float(value)
     }
 }
 
