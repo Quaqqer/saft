@@ -304,25 +304,26 @@ impl<'a> Parser<'a> {
         }
 
         match t {
-            Token::Equal => binop!(prec::ASSIGN, false, Expr::Assign),
+            Token::Equal => binop!(prec::ASSIGN, true, Expr::Assign),
 
-            Token::Or => binop!(prec::OR, false, Expr::Or),
+            Token::Or => binop!(prec::OR, true, Expr::Or),
 
-            Token::And => binop!(prec::AND, false, Expr::And),
+            Token::And => binop!(prec::AND, true, Expr::And),
 
-            Token::EqualEqual => binop!(prec::EQUALITY, false, Expr::Eq),
-            Token::BangEqual => binop!(prec::EQUALITY, false, Expr::Ne),
+            Token::EqualEqual => binop!(prec::EQUALITY, true, Expr::Eq),
+            Token::BangEqual => binop!(prec::EQUALITY, true, Expr::Ne),
 
-            Token::Less => binop!(prec::COMPARISON, false, Expr::Lt),
-            Token::LessEqual => binop!(prec::COMPARISON, false, Expr::Le),
-            Token::Greater => binop!(prec::COMPARISON, false, Expr::Gt),
-            Token::GreaterEqual => binop!(prec::COMPARISON, false, Expr::Ge),
+            Token::Less => binop!(prec::COMPARISON, true, Expr::Lt),
+            Token::LessEqual => binop!(prec::COMPARISON, true, Expr::Le),
+            Token::Greater => binop!(prec::COMPARISON, true, Expr::Gt),
+            Token::GreaterEqual => binop!(prec::COMPARISON, true, Expr::Ge),
 
             Token::Plus => binop!(prec::TERM, true, Expr::Add),
             Token::Minus => binop!(prec::TERM, true, Expr::Sub),
 
             Token::Star => binop!(prec::FACTOR, true, Expr::Mul),
             Token::Slash => binop!(prec::FACTOR, true, Expr::Div),
+            Token::SlashSlash => binop!(prec::FACTOR, true, Expr::IDiv),
 
             Token::Caret => binop!(prec::EXP, false, Expr::Pow),
 
