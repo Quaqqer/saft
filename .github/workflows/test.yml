@@ -18,6 +18,8 @@ jobs:
           rustup toolchain install nightly --profile minimal
           rustup default nightly
 
+          cargo build
+
           cargo test --all
 
   format:
