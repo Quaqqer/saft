@@ -3,8 +3,11 @@ resolver = "2"
 members = [
     "crates/saft",
     "crates/saft-ast",
-    "crates/saft-common", "crates/saft-eval",
-    "crates/saft-lexer", "crates/saft-macro",
+    "crates/saft-common",
+    "crates/saft-eval",
+    "crates/saft-lexer",
+    "crates/saft-macro",
     "crates/saft-parser",
+    "crates/saft-tests",
 ]
 default-members = ["crates/saft"]
