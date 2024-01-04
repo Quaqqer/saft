@@ -14,13 +14,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - run: |
-          rustup toolchain install nightly --profile minimal
-          rustup default nightly
-
-          cargo build
-
-          cargo test --all
+      - run: rustup toolchain install nightly --profile minimal
+      - run: rustup default nightly
+      - run: cargo build # Need to build before testing saft-test crate :/
+      - run: cargo test --all
 
   format:
     name: Format
@@ -30,12 +27,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - run: |
-          rustup toolchain install nightly --profile minimal
-          rustup default nightly
-          rustup component add rustfmt
-
-          cargo fmt --all --check
+      - run: rustup toolchain install nightly --profile minimal
+      - run: rustup default nightly
+      - run: rustup component add rustfmt
+      - run: cargo fmt --all --check
 
   lint:
     name: Lint
@@ -48,9 +43,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - run: |
-          rustup toolchain install nightly --profile minimal
-          rustup default nightly
-          rustup component add clippy
-
-          cargo clippy --all-targets --all-features
+      - run: rustup toolchain install nightly --profile minimal
+      - run: rustup default nightly
+      - run: rustup component add clippy
+      - run: cargo clippy --all-targets --all-features
