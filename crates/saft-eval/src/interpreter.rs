@@ -88,27 +88,18 @@ macro_rules! unresolved_error {
     };
 }
 
-pub struct Interpreter<IO: InterpreterIO> {
+#[derive(Debug)]
+pub struct Interpreter {
     env: Env,
-    pub io: IO,
-}
-
-pub trait InterpreterIO {
-    fn print(s: &str) {
-        println!("{}", s);
-    }
 }
 
 #[derive(Default)]
 pub struct StandardIO {}
 
-impl InterpreterIO for StandardIO {}
-
-impl<IO: InterpreterIO> Interpreter<IO> {
-    pub fn new(io: IO) -> Self {
+impl Interpreter {
+    pub fn new() -> Self {
         Self {
             env: Env::default(),
-            io,
         }
     }
 
@@ -329,7 +320,7 @@ impl<IO: InterpreterIO> Interpreter<IO> {
                         }
                     }
                     Value::Function(Function::NativeFunction(NativeFuncData { f, .. })) => {
-                        f(&s, arg_vals)?
+                        f(self, &s, arg_vals)?
                     }
                     _ => {
                         return Err(exotic!(
@@ -422,6 +413,13 @@ impl<IO: InterpreterIO> Interpreter<IO> {
     }
 }
 
+impl Default for Interpreter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[derive(Debug)]
 pub struct Env {
     scopes: Vec<HashMap<Ident, Value>>,
 }

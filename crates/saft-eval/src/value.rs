@@ -1,4 +1,4 @@
-use crate::interpreter::ControlFlow;
+use crate::interpreter::{ControlFlow, Interpreter};
 use std::{borrow::Borrow, rc::Rc};
 
 use saft_ast::Statement;
@@ -201,7 +201,7 @@ pub struct SaftFunction {
 #[derive(Clone, Debug)]
 pub struct NativeFuncData {
     pub name: &'static str,
-    pub f: fn(&Span, Vec<Spanned<Value>>) -> Result<Value, ControlFlow>,
+    pub f: fn(&mut Interpreter, &Span, Vec<Spanned<Value>>) -> Result<Value, ControlFlow>,
 }
 
 impl From<f64> for Value {

@@ -1,5 +1,5 @@
-use crate::exotic;
-use crate::interpreter::ControlFlow;
+use crate::interpreter::{ControlFlow, Interpreter};
+use crate::{cast_error, exotic};
 use saft_common::span::{Span, Spanned};
 use saft_macro::native_function;
 
@@ -49,6 +49,11 @@ fn split(string: String, delim: String) -> Vec<String> {
     string.split(&delim).map(|s| s.into()).collect()
 }
 
+#[native_function]
+fn join(parts: Vec<String>, separator: String) -> String {
+    parts.join(&separator)
+}
+
 pub fn add_natives(env: &mut Env) {
     add_native::<sin>(env);
     add_native::<cos>(env);
@@ -57,6 +62,7 @@ pub fn add_natives(env: &mut Env) {
     add_native::<repr>(env);
     add_native::<read>(env);
     add_native::<split>(env);
+    add_native::<join>(env);
 }
 
 fn add_native<N: NativeFunc>(env: &mut Env) {
