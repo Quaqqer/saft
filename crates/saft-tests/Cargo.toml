@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 assert_cmd = { version = "2.0.12", features = [ "color-auto" ] }
 pretty_assertions = "1.4.0"
+saft-macro = { version = "0.1.0", path = "../saft-macro" }
