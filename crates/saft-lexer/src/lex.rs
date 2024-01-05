@@ -105,6 +105,8 @@ impl<'a> Lexer<'a> {
                         "or" => mktoken!(cur, T::Or),
                         "true" => mktoken!(cur, T::True),
                         "false" => mktoken!(cur, T::False),
+                        "if" => mktoken!(cur, T::If),
+                        "else" => mktoken!(cur, T::Else),
                         s => mktoken!(cur, T::Identifier(s.into())),
                     }
                 }

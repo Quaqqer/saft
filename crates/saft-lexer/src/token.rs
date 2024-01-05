@@ -41,6 +41,8 @@ pub enum Token {
     Or,
     True,
     False,
+    If,
+    Else,
 }
 
 impl Token {
@@ -85,6 +87,8 @@ impl Token {
             Bang => "'!'".into(),
             True => "'true'".into(),
             False => "'false'".into(),
+            If => "'if'".into(),
+            Else => "'else'".into(),
         }
     }
 }

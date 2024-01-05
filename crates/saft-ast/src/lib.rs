@@ -36,7 +36,9 @@ pub enum Expr {
     Vec(Vec<Spanned<Expr>>),
 
     Grouping(Box<Spanned<Expr>>),
-    Block(Block),
+    Block(Spanned<Block>),
+
+    If(Box<Spanned<Expr>>, Spanned<Block>, Option<Box<Spanned<Expr>>>),
 
     Neg(Box<Spanned<Expr>>),
     Not(Box<Spanned<Expr>>),
@@ -94,6 +96,7 @@ impl Expr {
             IDiv(..) => "integer division",
             Not(..) => "not",
             Block(..) => "block",
+            If(..) => "if expression",
         }
     }
 }
@@ -116,6 +119,6 @@ pub enum Item {
     Fn {
         ident: Spanned<Ident>,
         params: Vec<Spanned<Ident>>,
-        body: Vec<Spanned<Statement>>,
+        body: Spanned<Block>,
     },
 }

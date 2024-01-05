@@ -190,7 +190,7 @@ impl<'a> Parser<'a> {
         Ok(stmts)
     }
 
-    pub fn parse_block(&mut self, start: Option<Span>) -> Result<Spanned<Expr>, Error> {
+    fn parse_block(&mut self, start: Option<Span>) -> Result<Spanned<Block>, Error> {
         let start = match start {
             Some(s) => s,
             None => self.eat(Token::LBrace)?,
@@ -206,10 +206,10 @@ impl<'a> Parser<'a> {
                     if let Some(end) = self.try_eat(Token::RBrace) {
                         let s = start.join(end);
 
-                        return Ok(s.spanned(Expr::Block(Block {
+                        return Ok(s.spanned(Block {
                             stmts,
                             tail: Some(Box::new(e.clone())),
-                        })));
+                        }));
                     }
                 }
                 Statement::Item(_) => {}
@@ -225,7 +225,37 @@ impl<'a> Parser<'a> {
 
         let s = start.join(end);
 
-        Ok(s.spanned(Expr::Block(Block { stmts, tail: None })))
+        Ok(s.spanned(Block { stmts, tail: None }))
+    }
+
+    fn parse_if(&mut self, start: Option<Span>) -> Result<Spanned<Expr>, Error> {
+        let start = match start {
+            Some(s) => s,
+            None => self.eat(Token::If)?,
+        };
+
+        let condition = self.parse_expr()?;
+
+        let block = self.parse_block(None)?;
+
+        let else_ = if self.try_eat(Token::Else).is_some() {
+            let peek = self.peek();
+            match peek.v {
+                Token::If => Some(self.parse_if(None)?),
+                Token::LBrace => {
+                    let block = self.parse_block(None)?;
+                    Some(block.s.clone().spanned(Expr::Block(block)))
+                }
+                _ => unexpected!(peek, "'if' or a block"),
+            }
+        } else {
+            None
+        }
+        .map(Box::new);
+
+        Ok(start
+            .join(block.s.clone())
+            .spanned(Expr::If(Box::new(condition), block, else_)))
     }
 
     pub fn parse_statement(&mut self) -> Result<Spanned<ast::Statement>, Error> {
@@ -259,7 +289,8 @@ impl<'a> Parser<'a> {
             | Token::True
             | Token::False
             | Token::Bang
-            | Token::LBrace => {
+            | Token::LBrace
+            | Token::If => {
                 let expr = self.parse_expr()?;
                 Ok(expr.s.clone().spanned(Statement::Expr(expr)))
             }
@@ -324,8 +355,10 @@ impl<'a> Parser<'a> {
                 Ok(s.spanned(Expr::Vec(exprs)))
             }
             T::LBrace => {
-                self.parse_block(Some(start))
+                let block = self.parse_block(Some(start))?;
+                Ok(block.s.clone().spanned(Expr::Block(block)))
             }
+            T::If => self.parse_if(Some(start)),
             T::True => Ok(st.s.spanned(Expr::Bool(true))),
             T::False => Ok(st.s.spanned(Expr::Bool(false))),
 
@@ -450,11 +483,8 @@ impl<'a> Parser<'a> {
 
         self.eat(Token::RParen)?;
 
-        self.eat(Token::LBrace)?;
-
-        let body = self.parse_statements(Token::RBrace)?;
-
-        let end = self.eat(Token::RBrace)?;
+        let body = self.parse_block(None)?;
+        let s = start.join(&body.s);
 
         Ok(Spanned::new(
             Statement::Item(Item::Fn {
@@ -462,7 +492,7 @@ impl<'a> Parser<'a> {
                 params,
                 body,
             }),
-            start.join(end),
+            s,
         ))
     }
 }

@@ -1,5 +1,5 @@
 use crate::natives::add_natives;
-use crate::value::{Cast, Function, NativeFuncData, Num, SaftFunction, Value};
+use crate::value::{Cast, Function, NativeFuncData, Num, SaftFunction, Value, ValueType};
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use saft_ast::{Block, Expr, Ident, Item, Module, Statement};
 use saft_common::span::{Span, Spanned};
@@ -143,7 +143,7 @@ impl Interpreter {
             }) => {
                 let fun = Value::Function(Function::SaftFunction(SaftFunction {
                     params: params.clone(),
-                    body: Rc::new(body.clone()),
+                    body: body.clone(),
                 }));
                 self.env.declare(ident, fun);
                 Ok(())
@@ -331,11 +331,7 @@ impl Interpreter {
                                 interpreter.env.declare(arg_name, arg.v.clone());
                             }
 
-                            for statement in body.iter() {
-                                interpreter.exec_statement(statement)?;
-                            }
-
-                            Ok(Value::Nil)
+                            interpreter.eval_block(&body.v)
                         }) {
                             Ok(v) => v,
                             Err(ControlFlow::Return(v)) => v,
@@ -586,7 +582,10 @@ impl Interpreter {
                         .ok_or::<Exception>(cast_error!(v, "numeric"))?),
                 ))
             }
-            Expr::Block(Block { stmts, tail }) => self.scoped(|interpreter| {
+            Expr::Block(Spanned {
+                v: Block { stmts, tail },
+                ..
+            }) => self.scoped(|interpreter| {
                 for stmt in stmts {
                     interpreter.exec_statement(stmt)?;
                 }
@@ -596,7 +595,37 @@ impl Interpreter {
                     None => Ok(Value::Nil),
                 }
             })?,
+            Expr::If(box condition, body, else_) => {
+                let condition = self.eval_expr(condition)?;
+                let enter = match Cast::<bool>::cast(condition.clone()) {
+                    Some(b) => b,
+                    None => return Err(cast_error!(condition, ValueType::Bool.name())),
+                };
+
+                if enter {
+                    self.eval_block(&body.v)?
+                } else if let Some(box expr) = else_ {
+                    self.eval_expr(expr)?.v
+                } else {
+                    Value::Nil
+                }
+            }
         }))
+    }
+
+    fn eval_block(&mut self, block: impl Borrow<Block>) -> Result<Value, ControlFlow> {
+        let Block { stmts, tail } = block.borrow();
+
+        self.scoped(|interpreter| {
+            for stmt in stmts {
+                interpreter.exec_statement(stmt)?;
+            }
+
+            match tail {
+                Some(box expr) => Ok::<_, ControlFlow>(interpreter.eval_expr(expr)?.v),
+                None => Ok(Value::Nil),
+            }
+        })
     }
 }
 

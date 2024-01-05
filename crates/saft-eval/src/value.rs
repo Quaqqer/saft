@@ -1,7 +1,7 @@
 use crate::interpreter::{ControlFlow, Interpreter};
-use std::{borrow::Borrow, rc::Rc};
+use std::borrow::Borrow;
 
-use saft_ast::Statement;
+use saft_ast::Block;
 use saft_common::span::{Span, Spanned};
 
 #[derive(Debug, Clone)]
@@ -239,7 +239,7 @@ pub enum Function {
 #[derive(Debug, Clone)]
 pub struct SaftFunction {
     pub params: Vec<Spanned<String>>,
-    pub body: Rc<Vec<Spanned<Statement>>>,
+    pub body: Spanned<Block>,
 }
 
 #[derive(Clone, Debug)]
@@ -388,6 +388,16 @@ impl CastFrom<Value> for f64 {
             Value::Num(Num::Float(f)) => Some(f),
             _ => None,
         }
+    }
+}
+
+impl<T, U: CastFrom<T>> CastFrom<Spanned<T>> for U {
+    fn ty_name() -> String {
+        U::ty_name()
+    }
+
+    fn cast_from(value: Spanned<T>) -> Option<Self> {
+        value.v.cast()
     }
 }
 
