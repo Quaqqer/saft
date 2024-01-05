@@ -11,6 +11,7 @@ use codespan_reporting::{
         termcolor::{ColorChoice, StandardStream},
     },
 };
+use indoc::indoc;
 use platform_dirs::AppDirs;
 use rustyline::{error::ReadlineError, DefaultEditor};
 use saft_eval::interpreter::Interpreter;
@@ -67,7 +68,17 @@ fn repl() {
         match readline {
             Ok(line) => {
                 rl.add_history_entry(&line).unwrap();
-                interpret_stmt(&mut interpreter, &line);
+                if line.starts_with(':') {
+                    match line.as_str() {
+                        ":h" => println!(indoc! {"
+                            :h   - print help
+                            :env - print env"}),
+                        ":env" => interpreter.print_env(),
+                        _ => println!("Unknown command, :h for help"),
+                    }
+                } else {
+                    interpret_stmt(&mut interpreter, &line);
+                }
             }
             Err(ReadlineError::Interrupted | ReadlineError::Eof) => {
                 break;

@@ -5,6 +5,7 @@ use saft_ast::{Block, Expr, Ident, Item, Module, Statement};
 use saft_common::span::{Span, Spanned};
 use std::borrow::Borrow;
 use std::collections::HashMap;
+use std::fmt::Write;
 use std::rc::Rc;
 
 #[macro_export]
@@ -626,6 +627,29 @@ impl Interpreter {
                 None => Ok(Value::Nil),
             }
         })
+    }
+
+    pub fn print_env(&self) {
+        let mut lines = Vec::new();
+        for scope in self.env.scopes.iter() {
+            let mut line = Vec::<String>::new();
+
+            for (k, v) in scope.iter() {
+                line.push(format!("{}: {}", k, v.repr()));
+            }
+
+            lines.push(line);
+        }
+
+        println!(
+            "{}",
+            lines
+                .iter()
+                .enumerate()
+                .map(|(i, line)| format!("{}: {}", i, &line.join(", ")))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
     }
 }
 

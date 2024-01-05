@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 clap = { version = "4.4.11", features = ["derive"] }
 codespan-reporting = "0.11.1"
+indoc = "2.0.4"
 platform-dirs = "0.3.0"
 rustyline = "13.0.0"
 saft-ast = { version = "0.1.0", path = "../saft-ast" }
