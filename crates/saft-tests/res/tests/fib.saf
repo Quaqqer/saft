@@ -1,0 +1,13 @@
+fn fib(i) {
+    if i == 0 {
+        0
+    } else if i == 1 {
+        1
+    } else {
+        fib(i-1) + fib(i-2)
+    }
+}
+
+print(fib(0));
+print(fib(1));
+print(fib(20));

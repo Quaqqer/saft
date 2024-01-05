@@ -183,8 +183,16 @@ impl<'a> Parser<'a> {
         let mut stmts = Vec::new();
 
         while self.peek().v != end {
-            stmts.push(self.parse_statement()?);
-            self.eat(Token::Semicolon)?;
+            let stmt = self.parse_statement()?;
+
+            match &stmt.v {
+                Statement::Item(_) => {}
+                _ => {
+                    self.eat_msg(Token::Semicolon, "Expected a ';' after a statement")?;
+                }
+            }
+
+            stmts.push(stmt);
         }
 
         Ok(stmts)
