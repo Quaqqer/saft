@@ -1,12 +1,25 @@
 #![feature(let_chains)]
 
-use std::collections::VecDeque;
+use std::{borrow::Borrow, collections::VecDeque};
 
 use ast::{Expr, Item, Module, Statement};
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use saft_ast as ast;
 use saft_common::span::{Span, Spanned};
 use saft_lexer::{lex::Lexer, token::Token};
+
+macro_rules! unexpected {
+    ($got:expr, $expected:expr) => {
+        return Err(unexpected($got, $expected))
+    };
+}
+
+fn unexpected(got: impl Borrow<Spanned<Token>>, expected: impl Into<String>) -> Error {
+    Error::UnexpectedToken {
+        got: got.borrow().clone(),
+        expected: expected.into(),
+    }
+}
 
 mod prec {
     pub const NONE: i32 = 0;
@@ -76,10 +89,7 @@ impl<'a> Parser<'a> {
                 self.advance();
                 Ok(st.s)
             }
-            _ => Err(Error::UnexpectedToken {
-                got: st,
-                expected: t.describe(),
-            }),
+            _ => unexpected!(st, t.describe()),
         }
     }
 
@@ -91,10 +101,7 @@ impl<'a> Parser<'a> {
                 self.advance();
                 Ok(st.s.spanned(ident))
             }
-            _ => Err(Error::UnexpectedToken {
-                got: st,
-                expected: Token::Identifier("".into()).describe(),
-            }),
+            _ => unexpected!(st, Token::Identifier("".into()).describe()),
         }
     }
 
@@ -142,10 +149,7 @@ impl<'a> Parser<'a> {
                 self.eat(Token::Eof)?;
                 Ok(s)
             }
-            _ => Err(Error::UnexpectedToken {
-                got: next,
-                expected: "End of file or ';'".into(),
-            }),
+            _ => unexpected!(next, "end of file or ';'"),
         }
     }
 
@@ -197,7 +201,7 @@ impl<'a> Parser<'a> {
 
             Token::Fn => self.parse_fn(),
 
-            _ => self.unexpected(st, "statement"),
+            _ => unexpected!(st, "statement"),
         }
     }
 
@@ -257,15 +261,8 @@ impl<'a> Parser<'a> {
             T::True => Ok(st.s.spanned(Expr::Bool(true))),
             T::False => Ok(st.s.spanned(Expr::Bool(false))),
 
-            _ => self.unexpected(st, "expression"),
+            _ => unexpected!(st, "expression"),
         }
-    }
-
-    fn unexpected<T>(&mut self, got: Spanned<Token>, expected: &'static str) -> Result<T, Error> {
-        Err(Error::UnexpectedToken {
-            got,
-            expected: expected.into(),
-        })
     }
 
     fn parse_precedence(&mut self, min_prec: i32) -> Result<Spanned<Expr>, Error> {
