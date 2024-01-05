@@ -38,7 +38,11 @@ pub enum Expr {
     Grouping(Box<Spanned<Expr>>),
     Block(Spanned<Block>),
 
-    If(Box<Spanned<Expr>>, Spanned<Block>, Option<Box<Spanned<Expr>>>),
+    If(
+        Box<Spanned<Expr>>,
+        Spanned<Block>,
+        Option<Box<Spanned<Expr>>>,
+    ),
 
     Neg(Box<Spanned<Expr>>),
     Not(Box<Spanned<Expr>>),
