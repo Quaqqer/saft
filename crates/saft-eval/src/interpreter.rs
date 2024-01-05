@@ -1,7 +1,7 @@
 use crate::natives::add_natives;
 use crate::value::{Cast, Function, NativeFuncData, Num, SaftFunction, Value};
 use codespan_reporting::diagnostic::{Diagnostic, Label};
-use saft_ast::{Expr, Ident, Item, Module, Statement};
+use saft_ast::{Block, Expr, Ident, Item, Module, Statement};
 use saft_common::span::{Span, Spanned};
 use std::borrow::Borrow;
 use std::collections::HashMap;
@@ -586,6 +586,16 @@ impl Interpreter {
                         .ok_or::<Exception>(cast_error!(v, "numeric"))?),
                 ))
             }
+            Expr::Block(Block { stmts, tail }) => self.scoped(|interpreter| {
+                for stmt in stmts {
+                    interpreter.exec_statement(stmt)?;
+                }
+
+                match tail {
+                    Some(box expr) => Ok::<_, ControlFlow>(interpreter.eval_expr(expr)?.v),
+                    None => Ok(Value::Nil),
+                }
+            })?,
         }))
     }
 }

@@ -19,6 +19,12 @@ pub enum Statement {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct Block {
+    pub stmts: Vec<Spanned<Statement>>,
+    pub tail: Option<Box<Spanned<Expr>>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Nil,
     Bool(bool),
@@ -27,8 +33,10 @@ pub enum Expr {
     String(String),
 
     Var(Spanned<Ident>),
-    Grouping(Box<Spanned<Expr>>),
     Vec(Vec<Spanned<Expr>>),
+
+    Grouping(Box<Spanned<Expr>>),
+    Block(Block),
 
     Neg(Box<Spanned<Expr>>),
     Not(Box<Spanned<Expr>>),
@@ -84,7 +92,8 @@ impl Expr {
             Eq(..) => "equal",
             Ne(..) => "not equal",
             IDiv(..) => "integer division",
-            Not(_) => "not",
+            Not(..) => "not",
+            Block(..) => "block",
         }
     }
 }

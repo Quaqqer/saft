@@ -193,7 +193,7 @@ mod test {
         assert_eq!(Lexer::new(src).all_tokens(), spanned_tokens);
     }
 
-    fn spanned<'a>(t: T, r: Range<usize>) -> Spanned<T> {
+    fn spanned(t: T, r: Range<usize>) -> Spanned<T> {
         Spanned::new(t, span(r))
     }
 

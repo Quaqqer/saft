@@ -2,7 +2,7 @@
 
 use std::{borrow::Borrow, collections::VecDeque};
 
-use ast::{Expr, Item, Module, Statement};
+use ast::{Block, Expr, Item, Module, Statement};
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use saft_ast as ast;
 use saft_common::span::{Span, Spanned};
@@ -19,6 +19,16 @@ fn unexpected(got: impl Borrow<Spanned<Token>>, expected: impl Into<String>) -> 
         got: got.borrow().clone(),
         expected: expected.into(),
     }
+}
+
+macro_rules! exotic {
+    ($span:expr, $msg:expr) => {
+        return Err(exotic($span, $msg))
+    };
+}
+
+fn exotic(span: impl Borrow<Span>, expected: impl Into<String>) -> Error {
+    Error::Exotic(span.borrow().spanned(expected.into()))
 }
 
 mod prec {
@@ -42,16 +52,20 @@ pub enum Error {
         got: Spanned<Token>,
         expected: String,
     },
+    Exotic(Spanned<String>),
 }
 
 impl Error {
-    pub fn diagnostic<FileId>(&self, file_id: FileId) -> Diagnostic<FileId> {
+    pub fn diagnostic<FileId>(self, file_id: FileId) -> Diagnostic<FileId> {
         match self {
             Error::UnexpectedToken { got, expected } => Diagnostic::error()
                 .with_message("Got an unexpected token")
-                .with_labels(vec![Label::primary(file_id, got.s.r.clone()).with_message(
+                .with_labels(vec![Label::primary(file_id, got.s.r).with_message(
                     format!("Got {} but expected {}", got.v.describe(), expected),
                 )]),
+            Error::Exotic(sm) => Diagnostic::error()
+                .with_message(sm.v)
+                .with_labels(vec![Label::primary(file_id, sm.s.r)]),
         }
     }
 }
@@ -93,6 +107,18 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn eat_msg(&mut self, t: Token, msg: impl Into<String>) -> Result<Span, Error> {
+        let st = self.peek();
+
+        match st.v {
+            v if v == t => {
+                self.advance();
+                Ok(st.s)
+            }
+            _ => exotic!(st.s, msg),
+        }
+    }
+
     fn eat_ident(&mut self) -> Result<Spanned<String>, Error> {
         let st = self.peek();
 
@@ -105,15 +131,15 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn try_eat(&mut self, t: Token) -> bool {
+    fn try_eat(&mut self, t: Token) -> Option<Span> {
         let st = self.peek();
 
         match st.v {
             v if v == t => {
                 self.eat(t).expect("Was peeked, should not happen");
-                true
+                Some(st.s)
             }
-            _ => false,
+            _ => None,
         }
     }
 
@@ -164,6 +190,44 @@ impl<'a> Parser<'a> {
         Ok(stmts)
     }
 
+    pub fn parse_block(&mut self, start: Option<Span>) -> Result<Spanned<Expr>, Error> {
+        let start = match start {
+            Some(s) => s,
+            None => self.eat(Token::LBrace)?,
+        };
+
+        let mut stmts = Vec::new();
+
+        while self.peek().v != Token::RBrace {
+            let stmt = self.parse_statement()?;
+
+            match &stmt.v {
+                Statement::Expr(e) => {
+                    if let Some(end) = self.try_eat(Token::RBrace) {
+                        let s = start.join(end);
+
+                        return Ok(s.spanned(Expr::Block(Block {
+                            stmts,
+                            tail: Some(Box::new(e.clone())),
+                        })));
+                    }
+                }
+                Statement::Item(_) => {}
+                _ => {
+                    self.eat_msg(Token::Semicolon, "Expected a ';' after a statement")?;
+                }
+            }
+
+            stmts.push(stmt);
+        }
+
+        let end = self.eat(Token::RBrace)?;
+
+        let s = start.join(end);
+
+        Ok(s.spanned(Expr::Block(Block { stmts, tail: None })))
+    }
+
     pub fn parse_statement(&mut self) -> Result<Spanned<ast::Statement>, Error> {
         let st = self.peek();
 
@@ -194,7 +258,8 @@ impl<'a> Parser<'a> {
             | Token::LBracket
             | Token::True
             | Token::False
-            | Token::Bang => {
+            | Token::Bang
+            | Token::LBrace => {
                 let expr = self.parse_expr()?;
                 Ok(expr.s.clone().spanned(Statement::Expr(expr)))
             }
@@ -250,13 +315,16 @@ impl<'a> Parser<'a> {
 
                     exprs.push(self.parse_expr()?);
 
-                    if !self.try_eat(T::Comma) {
+                    if self.try_eat(T::Comma).is_none() {
                         break;
                     }
                 }
                 let end = self.eat(T::RBracket)?;
                 let s = start.join(end);
                 Ok(s.spanned(Expr::Vec(exprs)))
+            }
+            T::LBrace => {
+                self.parse_block(Some(start))
             }
             T::True => Ok(st.s.spanned(Expr::Bool(true))),
             T::False => Ok(st.s.spanned(Expr::Bool(false))),
@@ -335,7 +403,7 @@ impl<'a> Parser<'a> {
                         let arg = parser.parse_expr()?;
                         arguments.push(arg);
 
-                        let ate_comma = parser.try_eat(Token::Comma);
+                        let ate_comma = parser.try_eat(Token::Comma).is_some();
                         if !ate_comma {
                             break;
                         }
@@ -375,7 +443,7 @@ impl<'a> Parser<'a> {
             let param = self.eat_ident()?;
             params.push(param);
 
-            if !self.try_eat(Token::Comma) {
+            if self.try_eat(Token::Comma).is_none() {
                 break;
             }
         }

@@ -193,6 +193,7 @@ impl Num {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn eq(&self, rhs: impl Borrow<Num>) -> bool {
         match bin_promote(self, rhs.borrow()) {
             (Num::Int(a), Num::Int(b)) => a == b,
@@ -244,6 +245,7 @@ pub struct SaftFunction {
 #[derive(Clone, Debug)]
 pub struct NativeFuncData {
     pub name: &'static str,
+    #[allow(clippy::type_complexity)]
     pub f: fn(&mut Interpreter, &Span, Vec<Spanned<Value>>) -> Result<Value, ControlFlow>,
 }
 
