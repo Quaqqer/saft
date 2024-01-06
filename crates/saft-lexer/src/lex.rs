@@ -107,6 +107,8 @@ impl<'a> Lexer<'a> {
                         "false" => mktoken!(cur, T::False),
                         "if" => mktoken!(cur, T::If),
                         "else" => mktoken!(cur, T::Else),
+                        "loop" => mktoken!(cur, T::Loop),
+                        "break" => mktoken!(cur, T::Break),
                         s => mktoken!(cur, T::Identifier(s.into())),
                     }
                 }

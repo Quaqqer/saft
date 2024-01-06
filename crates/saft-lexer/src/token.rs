@@ -6,6 +6,14 @@ pub enum Token {
 
     Fn,
     Return,
+    And,
+    Or,
+    True,
+    False,
+    If,
+    Else,
+    Loop,
+    Break,
 
     LParen,
     RParen,
@@ -37,12 +45,6 @@ pub enum Token {
     EqualEqual,
     Bang,
     BangEqual,
-    And,
-    Or,
-    True,
-    False,
-    If,
-    Else,
 }
 
 impl Token {
@@ -89,6 +91,8 @@ impl Token {
             False => "'false'".into(),
             If => "'if'".into(),
             Else => "'else'".into(),
+            Loop => "'loop'".into(),
+            Break => "'break'".into(),
         }
     }
 }

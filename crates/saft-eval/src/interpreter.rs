@@ -5,8 +5,6 @@ use saft_ast::{Block, Expr, Ident, Item, Module, Statement};
 use saft_common::span::{Span, Spanned};
 use std::borrow::Borrow;
 use std::collections::HashMap;
-use std::fmt::Write;
-use std::rc::Rc;
 
 #[macro_export]
 macro_rules! exotic {
@@ -125,6 +123,7 @@ impl Interpreter {
     pub fn exec_outer_statement(&mut self, stmt: &Spanned<Statement>) -> Result<(), Exception> {
         self.exec_statement(stmt).map_err(|e| match e {
             ControlFlow::Return(_) => exotic!("Cannot return from outer scope"),
+            ControlFlow::Break(_) => exotic!("Cannot break from outside of loops"),
             ControlFlow::Exception(ex) => ex,
         })
     }
@@ -162,6 +161,7 @@ impl Interpreter {
     ) -> Result<Spanned<Value>, Exception> {
         self.eval_expr(expr).map_err(|e| match e {
             ControlFlow::Return(_) => exotic!("Cannot return from outer scope"),
+            ControlFlow::Break(_) => exotic!("Cannot break from outer scope"),
             ControlFlow::Exception(ex) => ex,
         })
     }
@@ -611,6 +611,18 @@ impl Interpreter {
                     Value::Nil
                 }
             }
+            Expr::Loop(stmts) => 'outer: loop {
+                for stmt in stmts {
+                    match self.exec_statement(stmt) {
+                        Err(ControlFlow::Break(v)) => break 'outer v,
+                        v => v,
+                    }?;
+                }
+            },
+            Expr::Break(box expr) => {
+                let expr = self.eval_expr(expr)?;
+                return Err(ControlFlow::Break(expr.v));
+            }
         }))
     }
 
@@ -707,6 +719,7 @@ impl Default for Env {
 
 pub enum ControlFlow {
     Return(Value),
+    Break(Value),
     Exception(Exception),
 }
 

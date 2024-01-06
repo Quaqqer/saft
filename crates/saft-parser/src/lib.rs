@@ -1,4 +1,4 @@
-#![feature(let_chains)]
+#![feature(let_chains, if_let_guard)]
 
 use std::{borrow::Borrow, collections::VecDeque};
 
@@ -210,15 +210,13 @@ impl<'a> Parser<'a> {
             let stmt = self.parse_statement()?;
 
             match &stmt.v {
-                Statement::Expr(e) => {
-                    if let Some(end) = self.try_eat(Token::RBrace) {
-                        let s = start.join(end);
+                Statement::Expr(e) if let Some(end) = self.try_eat(Token::RBrace) => {
+                    let s = start.join(end);
 
-                        return Ok(s.spanned(Block {
-                            stmts,
-                            tail: Some(Box::new(e.clone())),
-                        }));
-                    }
+                    return Ok(s.spanned(Block {
+                        stmts,
+                        tail: Some(Box::new(e.clone())),
+                    }));
                 }
                 Statement::Item(_) => {}
                 _ => {
@@ -298,7 +296,9 @@ impl<'a> Parser<'a> {
             | Token::False
             | Token::Bang
             | Token::LBrace
-            | Token::If => {
+            | Token::If
+            | Token::Loop
+            | Token::Break => {
                 let expr = self.parse_expr()?;
                 Ok(expr.s.clone().spanned(Statement::Expr(expr)))
             }
@@ -334,6 +334,17 @@ impl<'a> Parser<'a> {
                     Expr::Grouping(Box::new(inner)),
                     start.join(end),
                 ))
+            }
+            T::Break => {
+                let inner = self.parse_expr()?;
+                Ok(st.s.spanned(Expr::Break(Box::new(inner))))
+            }
+            T::Loop => {
+                let start =
+                    self.eat_msg(Token::LBrace, "Expected a block after the loop keyword")?;
+                let stmts = self.parse_statements(Token::RBrace)?;
+                let end = self.eat(Token::RBrace)?;
+                Ok(start.join(end).spanned(Expr::Loop(stmts)))
             }
             T::Minus => {
                 let expr = self.parse_precedence(prec::UNARY + 1)?;

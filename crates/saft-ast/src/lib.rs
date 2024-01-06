@@ -43,6 +43,8 @@ pub enum Expr {
         Spanned<Block>,
         Option<Box<Spanned<Expr>>>,
     ),
+    Loop(Vec<Spanned<Statement>>),
+    Break(Box<Spanned<Expr>>),
 
     Neg(Box<Spanned<Expr>>),
     Not(Box<Spanned<Expr>>),
@@ -101,6 +103,8 @@ impl Expr {
             Not(..) => "not",
             Block(..) => "block",
             If(..) => "if expression",
+            Loop(_) => "loop",
+            Break(_) => "break",
         }
     }
 }
