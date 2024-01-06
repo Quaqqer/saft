@@ -1,0 +1,20 @@
+fn fib(n) {
+    if n == 0 { return 0; };
+
+    a := 0;
+    b := 1;
+
+    loop {
+        if n == 1 {
+            break b;
+        };
+
+        c := a + b;
+        a = b;
+        b = c;
+
+        n = n - 1;
+    }
+}
+
+print(fib(100));
