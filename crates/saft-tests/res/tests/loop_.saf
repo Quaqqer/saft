@@ -9,3 +9,9 @@ x := loop {
 };
 
 print(x);
+
+# output:
+# 1
+# 2
+# 3
+# 13

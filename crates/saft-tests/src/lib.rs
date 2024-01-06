@@ -4,15 +4,35 @@ mod test {
     use pretty_assertions::assert_eq;
     use saft_macro::discover_tests;
 
-    #[discover_tests(path = "./crates/saft-tests/res/tests/**/*.saf.out")]
-    fn test(file_name: &str, out_file: &str) {
+    #[discover_tests(root = "./crates/saft-tests/res/tests", glob = "**/[!_]*.saf")]
+    fn test(file_name: &str) {
         let mut cmd = Command::cargo_bin("saft").unwrap();
         cmd.arg(file_name);
 
-        let output = cmd.unwrap();
+        let got = String::from_utf8(cmd.unwrap().stdout)
+            .unwrap()
+            .lines()
+            .map(|line| line.trim())
+            .collect::<Vec<_>>()
+            .join("\n");
 
-        let expected_output = std::fs::read_to_string(out_file).unwrap();
+        let mut expected = Vec::new();
 
-        assert_eq!(String::from_utf8(output.stdout).unwrap(), expected_output);
+        let mut got_output = false;
+        for line in std::fs::read_to_string(file_name).unwrap().lines() {
+            if line.starts_with('#') {
+                let comment = &line[1..].trim();
+
+                if got_output {
+                    expected.push(comment.to_string());
+                } else {
+                    if *comment == "output:" {
+                        got_output = true;
+                    }
+                }
+            }
+        }
+
+        assert_eq!(got, expected.join("\n"));
     }
 }

@@ -17,4 +17,7 @@ fn fib(n) {
     }
 }
 
-print(fib(100));
+print(fib(20));
+
+# output:
+# 6765

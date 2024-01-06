@@ -11,3 +11,8 @@ fn fib(i) {
 print(fib(0));
 print(fib(1));
 print(fib(20));
+
+# output:
+# 0
+# 1
+# 6765
