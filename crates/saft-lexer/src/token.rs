@@ -6,10 +6,6 @@ pub enum Token {
 
     Fn,
     Return,
-    And,
-    Or,
-    True,
-    False,
     If,
     Else,
     Loop,
@@ -29,7 +25,11 @@ pub enum Token {
     Integer(i64),
     String(String),
     Nil,
+    True,
+    False,
 
+    And,
+    Or,
     ColonEqual,
     Equal,
     Plus,
