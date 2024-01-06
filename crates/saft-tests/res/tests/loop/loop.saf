@@ -1,0 +1,11 @@
+i := 1;
+
+x := loop {
+    print(i);
+
+    if i == 3 { break i + 10; };
+
+    i = i + 1;
+};
+
+print(x);
