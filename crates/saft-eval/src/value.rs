@@ -1,5 +1,5 @@
 use crate::interpreter::{ControlFlow, Interpreter};
-use std::borrow::Borrow;
+use std::{borrow::Borrow, rc::Rc};
 
 use saft_ast::Block;
 use saft_common::span::{Span, Spanned};
@@ -8,8 +8,8 @@ use saft_common::span::{Span, Spanned};
 pub enum Value {
     Nil,
     Num(Num),
-    Function(Function),
-    String(String),
+    Function(Rc<Function>),
+    String(Rc<String>),
     Vec(Vec<Value>),
 }
 
@@ -18,8 +18,10 @@ impl Value {
         match self {
             Value::Nil => "nil".into(),
             Value::Num(num) => num.repr(),
-            Value::Function(Function::SaftFunction(..)) => "<function>".into(),
-            Value::Function(Function::NativeFunction(..)) => "<builtin function>".into(),
+            Value::Function(fun) => match fun.as_ref() {
+                Function::SaftFunction(_) => "<function>".into(),
+                Function::NativeFunction(_) => "<builtin function>".into(),
+            },
             Value::String(s) => format!("\"{}\"", s),
             Value::Vec(vals) => {
                 let mut buf = String::new();
@@ -281,7 +283,7 @@ impl From<Num> for Value {
 
 impl From<String> for Value {
     fn from(value: String) -> Self {
-        Value::String(value)
+        Value::String(Rc::new(value))
     }
 }
 
@@ -434,7 +436,7 @@ impl CastFrom<Value> for String {
 
     fn cast_from(value: Value) -> Option<Self> {
         match value {
-            Value::String(s) => Some(s.clone()),
+            Value::String(s) => Some(s.as_ref().clone()),
             _ => None,
         }
     }

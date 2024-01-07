@@ -5,6 +5,7 @@ use saft_ast::{Block, Expr, Ident, Item, Module, Statement};
 use saft_common::span::{Span, Spanned};
 use std::borrow::Borrow;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 #[macro_export]
 macro_rules! exotic {
@@ -141,10 +142,10 @@ impl Interpreter {
                 params,
                 body,
             }) => {
-                let fun = Value::Function(Function::SaftFunction(SaftFunction {
+                let fun = Value::Function(Rc::new(Function::SaftFunction(SaftFunction {
                     params: params.clone(),
                     body: body.clone(),
-                }));
+                })));
                 self.env.declare(ident, fun);
                 Ok(())
             }
@@ -179,7 +180,7 @@ impl Interpreter {
             Expr::Integer(i) => (*i).into(),
             Expr::Float(f) => (*f).into(),
             Expr::Nil => Value::Nil,
-            Expr::String(s) => Value::String(s.clone()),
+            Expr::String(s) => Value::String(Rc::new(s.clone())),
             Expr::Assign(lhs, rhs) => {
                 if let Expr::Var(ident) = &lhs.v {
                     let res = self.eval_expr(rhs.as_ref())?;
@@ -199,7 +200,9 @@ impl Interpreter {
 
                 match (&lhs.v, &rhs.v) {
                     (Value::Num(a), Value::Num(b)) => Value::Num(a.add(b)),
-                    (Value::String(a), Value::String(b)) => Value::String(a.to_owned() + b),
+                    (Value::String(a), Value::String(b)) => {
+                        Value::String(Rc::new(a.as_ref().clone() + b))
+                    }
                     _ => {
                         return Err(type_error!(
                             format!(
@@ -316,8 +319,11 @@ impl Interpreter {
                     arg_vals.push(self.eval_expr(arg)?);
                 }
 
-                match fun.v {
-                    Value::Function(Function::SaftFunction(SaftFunction { params, body })) => {
+                match &fun.v {
+                    Value::Function(fun)
+                        if let Function::SaftFunction(SaftFunction { params, body }) =
+                            fun.as_ref() =>
+                    {
                         match self.scoped(|interpreter| {
                             if arg_vals.len() != params.len() {
                                 return Err(Exception::ArgMismatch {
@@ -339,7 +345,10 @@ impl Interpreter {
                             Err(e) => return Err(e),
                         }
                     }
-                    Value::Function(Function::NativeFunction(NativeFuncData { f, .. })) => {
+                    Value::Function(fun)
+                        if let Function::NativeFunction(NativeFuncData { f, .. }) =
+                            fun.as_ref() =>
+                    {
                         f(self, &s, arg_vals)?
                     }
                     _ => {
@@ -366,7 +375,7 @@ impl Interpreter {
                 match expr.v {
                     Value::String(str) => match index.v {
                         Value::Num(Num::Int(i)) => match str.get(i as usize..i as usize + 1) {
-                            Some(c) => Value::String(c.to_string()),
+                            Some(c) => Value::String(Rc::new(c.to_string())),
                             None => {
                                 return Err(exotic!(
                                     "Indexed out of bounds",

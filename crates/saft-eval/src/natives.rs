@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::interpreter::{ControlFlow, Interpreter};
 use crate::{cast_error, exotic};
 use saft_common::span::{Span, Spanned};
@@ -69,6 +71,6 @@ fn add_native<N: NativeFunc>(env: &mut Env) {
     let data = N::data();
     env.declare_unspanned(
         &data.name.into(),
-        Value::Function(Function::NativeFunction(data)),
+        Value::Function(Rc::new(Function::NativeFunction(data))),
     );
 }
