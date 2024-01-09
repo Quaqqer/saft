@@ -60,12 +60,3 @@ list = '[' [ expr { ',' , expr } ] ']'
 
 if = 'if' , expr , block , [ 'else' , ( block | if ) ]
 ```
-
-## Goals
-
-- Bytecode VM
-- Type system (HM)
-
-### Near Goals
-
-### Future Goals
