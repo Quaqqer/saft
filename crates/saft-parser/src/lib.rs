@@ -506,11 +506,11 @@ impl<'a> Parser<'a> {
         let s = start.join(&body.s);
 
         Ok(Spanned::new(
-            Statement::Item(Item::Fn {
+            Statement::Item(Item::Function(ast::Function {
                 ident,
                 params,
                 body,
-            }),
+            })),
             s,
         ))
     }

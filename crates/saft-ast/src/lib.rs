@@ -115,7 +115,7 @@ impl Statement {
             Statement::Expr(..) => "expression statement",
             Statement::Declare { .. } => "variable declaration",
             Statement::Item(item) => match item {
-                Item::Fn { .. } => "function declaration",
+                Item::Function { .. } => "function declaration",
             },
             Statement::Return(_) => "return",
         }
@@ -124,9 +124,12 @@ impl Statement {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Item {
-    Fn {
-        ident: Spanned<Ident>,
-        params: Vec<Spanned<Ident>>,
-        body: Spanned<Block>,
-    },
+    Function(Function),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Function {
+    pub ident: Spanned<Ident>,
+    pub params: Vec<Spanned<Ident>>,
+    pub body: Spanned<Block>,
 }

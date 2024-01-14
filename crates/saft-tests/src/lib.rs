@@ -20,15 +20,11 @@ mod test {
 
         let mut got_output = false;
         for line in std::fs::read_to_string(file_name).unwrap().lines() {
-            if line.starts_with('#') {
-                let comment = &line[1..].trim();
-
+            if let Some(comment) = line.strip_prefix('#').map(|l| l.trim()) {
                 if got_output {
                     expected.push(comment.to_string());
-                } else {
-                    if *comment == "output:" {
-                        got_output = true;
-                    }
+                } else if comment == "output:" {
+                    got_output = true;
                 }
             }
         }

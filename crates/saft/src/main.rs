@@ -102,24 +102,37 @@ fn interpret_stmt(interpreter: &mut Interpreter, s: &str) {
     let config = codespan_reporting::term::Config::default();
 
     match saft_parser::Parser::new(s).parse_single_statment() {
-        Ok(spanned_stmt) => match &spanned_stmt.v {
-            saft_ast::Statement::Expr(se) => match interpreter.eval_outer_expr(se) {
-                Ok(v) => match v.v {
-                    saft_eval::value::Value::Nil => {}
-                    v => println!("{}", v.repr()),
-                },
+        Ok(spanned_stmt) => {
+            match saft_ast_to_ir::Lowerer::new().lower_statement(&spanned_stmt) {
+                Ok(ir) => {
+                    println!("{:#?}", ir.unwrap())
+                }
                 Err(err) => {
                     term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap()
                 }
-            },
+            }
 
-            _ => match interpreter.exec_outer_statement(&spanned_stmt) {
-                Ok(..) => {}
-                Err(err) => {
-                    term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap()
-                }
-            },
-        },
+            match &spanned_stmt.v {
+                saft_ast::Statement::Expr(se) => match interpreter.eval_outer_expr(se) {
+                    Ok(v) => match v.v {
+                        saft_eval::value::Value::Nil => {}
+                        v => println!("{}", v.repr()),
+                    },
+                    Err(err) => {
+                        term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id))
+                            .unwrap()
+                    }
+                },
+
+                _ => match interpreter.exec_outer_statement(&spanned_stmt) {
+                    Ok(..) => {}
+                    Err(err) => {
+                        term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id))
+                            .unwrap()
+                    }
+                },
+            }
+        }
         Err(err) => term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap(),
     };
 }

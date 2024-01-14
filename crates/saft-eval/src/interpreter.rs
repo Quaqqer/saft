@@ -137,11 +137,11 @@ impl Interpreter {
                 self.env.declare(ident, res.v);
                 Ok(())
             }
-            Statement::Item(Item::Fn {
+            Statement::Item(Item::Function(saft_ast::Function {
                 ident,
                 params,
                 body,
-            }) => {
+            })) => {
                 let fun = Value::Function(Rc::new(Function::SaftFunction(SaftFunction {
                     params: params.clone(),
                     body: body.clone(),
