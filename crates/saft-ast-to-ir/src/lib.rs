@@ -54,6 +54,7 @@ impl Error {
 pub struct Lowerer {
     items: Vec<Spanned<ir::Item>>,
     scopes: Vec<HashMap<String, ir::Ref>>,
+    scope_base: usize,
     var_counter: usize,
 }
 
@@ -63,6 +64,7 @@ impl Lowerer {
         Self {
             items: Vec::new(),
             scopes: vec![HashMap::new()],
+            scope_base: 0,
             var_counter: 0,
         }
     }
@@ -92,26 +94,25 @@ impl Lowerer {
         let Spanned { s, v: item } = item;
 
         Ok(s.spanned(match item {
-            ast::Item::Function(ast::Function {
-                ident,
-                params,
-                body,
-            }) => {
-                // FIXME: Scopes are wrong, this looks up scope which is inaccessible
-                let item = self.scoped(|l| {
-                    let params = params
-                        .iter()
-                        .map(|ident| l.declare(ident))
-                        .try_collect::<Vec<_>>()?;
-
-                    let body = l.lower_block(body)?;
-
-                    Ok(ir::Item::Function(ir::Function { params, body }))
-                })?;
-
-                self.new_item(ident, s.spanned(item))
+            ast::Item::Function(fun @ ast::Function { ident, .. }) => {
+                let item = s.spanned(ir::Item::Function(self.lower_item_fn(fun)?));
+                self.new_item(ident, item)
             }
         }))
+    }
+
+    fn lower_item_fn(&mut self, fn_: &ast::Function) -> Result<ir::Function, Error> {
+        let ast::Function { params, body, .. } = fn_;
+
+        self.scoped_based(|l| {
+            let params = params
+                .iter()
+                .map(|ident| l.declare(ident))
+                .try_collect::<Vec<_>>()?;
+            let body = l.lower_block(body)?;
+
+            Ok(ir::Function { params, body })
+        })
     }
 
     pub fn lower_module(mut self, module: &ast::Module) -> Result<ir::Module, Error> {
@@ -331,6 +332,19 @@ impl Lowerer {
         res
     }
 
+    fn scoped_based<F, T>(&mut self, mut f: F) -> T
+    where
+        F: FnMut(&mut Self) -> T,
+    {
+        self.scoped(|l| {
+            let prev_base = l.scope_base;
+            l.scope_base = l.scopes.len() - 1;
+            let res = f(l);
+            l.scope_base = prev_base;
+            res
+        })
+    }
+
     fn declare(&mut self, ident: &Spanned<String>) -> Result<Spanned<ir::VarRef>, Error> {
         let ref_ = self.new_varref();
         self.scopes
@@ -341,9 +355,22 @@ impl Lowerer {
     }
 
     fn resolve(&self, ident: &Spanned<String>) -> Result<ir::Ref, Error> {
-        for scope in self.scopes.iter().rev() {
+        for (scope_i, scope) in self.scopes.iter().enumerate().rev() {
             if let Some(ref_) = scope.get(&ident.v) {
-                return Ok(*ref_);
+                match ref_ {
+                    ir::Ref::Item(_) => return Ok(*ref_),
+                    ir::Ref::Var(_) => {
+                        return if self.scope_base <= scope_i {
+                            Ok(*ref_)
+                        } else {
+                            exotic!(
+                                "Inaccessible variable",
+                                ident.s.clone(),
+                                "Variable was resolved but is inaccessible from this context"
+                            )
+                        }
+                    }
+                }
             }
         }
 

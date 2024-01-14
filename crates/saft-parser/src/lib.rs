@@ -330,10 +330,7 @@ impl<'a> Parser<'a> {
                 let start = st.s;
                 let inner = self.parse_expr()?;
                 let end = self.eat(T::RParen)?;
-                Ok(Spanned::new(
-                    Expr::Grouping(Box::new(inner)),
-                    start.join(end),
-                ))
+                Ok(start.join(end).spanned(Expr::Grouping(Box::new(inner))))
             }
             T::Break => {
                 let inner = self.parse_expr()?;
@@ -349,12 +346,12 @@ impl<'a> Parser<'a> {
             T::Minus => {
                 let expr = self.parse_precedence(prec::UNARY + 1)?;
                 let s = st.s.join(&expr.s);
-                Ok(Spanned::new(Expr::Neg(Box::new(expr)), s))
+                Ok(s.spanned(Expr::Neg(Box::new(expr))))
             }
             T::Bang => {
                 let expr = self.parse_precedence(prec::UNARY + 1)?;
                 let s = st.s.join(&expr.s);
-                Ok(Spanned::new(Expr::Not(Box::new(expr)), s))
+                Ok(s.spanned(Expr::Not(Box::new(expr))))
             }
             T::LBracket => {
                 let mut exprs = Vec::new();
