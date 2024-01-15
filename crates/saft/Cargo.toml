@@ -11,8 +11,8 @@ platform-dirs = "0.3.0"
 rustyline = "13.0.0"
 saft-ast = { version = "0.1.0", path = "../saft-ast" }
 saft-ast-to-ir = { version = "0.1.0", path = "../saft-ast-to-ir" }
+saft-bytecode = { version = "0.1.0", path = "../saft-bytecode" }
 saft-common = { version = "0.1.0", path = "../saft-common" }
-saft-eval = { version = "0.1.0", path = "../saft-eval" }
 saft-ir = { version = "0.1.0", path = "../saft-ir" }
 saft-lexer = { version = "0.1.0", path = "../saft-lexer" }
 saft-parser = { version = "0.1.0", path = "../saft-parser" }

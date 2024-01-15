@@ -1,6 +1,7 @@
 use std::{
     fs::{self, create_dir_all, File},
     path::PathBuf,
+    rc::Rc,
 };
 
 use clap::Parser;
@@ -14,7 +15,7 @@ use codespan_reporting::{
 use indoc::indoc;
 use platform_dirs::AppDirs;
 use rustyline::{error::ReadlineError, DefaultEditor};
-use saft_eval::interpreter::Interpreter;
+use saft_bytecode::vm::Vm;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -35,12 +36,7 @@ fn main() {
             }
 
             let s = fs::read_to_string(&path).expect("Could not read file");
-            let mut interpreter = Interpreter::new();
-            interpret_module(
-                &mut interpreter,
-                path.file_name().unwrap().to_str().unwrap(),
-                &s,
-            );
+            interpret_module(path.file_name().unwrap().to_str().unwrap(), &s);
         }
         None => {
             repl();
@@ -61,8 +57,6 @@ fn repl() {
 
     let _ = rl.load_history(&history_file);
 
-    let mut interpreter = Interpreter::new();
-
     loop {
         let readline = rl.readline(">> ");
         match readline {
@@ -71,13 +65,11 @@ fn repl() {
                 if line.starts_with(':') {
                     match line.as_str() {
                         ":h" => println!(indoc! {"
-                            :h   - print help
-                            :env - print env"}),
-                        ":env" => interpreter.print_env(),
+                        :h   - print help"}),
                         _ => println!("Unknown command, :h for help"),
                     }
                 } else {
-                    interpret_stmt(&mut interpreter, &line);
+                    interpret_stmt(&line);
                 }
             }
             Err(ReadlineError::Interrupted | ReadlineError::Eof) => {
@@ -94,64 +86,103 @@ fn repl() {
         .expect("Could not save history");
 }
 
-fn interpret_stmt(interpreter: &mut Interpreter, s: &str) {
+fn interpret_stmt(s: &str) {
     let mut files = SimpleFiles::new();
     let id = files.add("stdin", s);
 
     let writer = StandardStream::stdout(ColorChoice::Auto);
     let config = codespan_reporting::term::Config::default();
 
-    match saft_parser::Parser::new(s).parse_single_statment() {
-        Ok(spanned_stmt) => {
-            match saft_ast_to_ir::Lowerer::new().lower_statement(&spanned_stmt) {
-                Ok(ir) => {
-                    println!("{:#?}", ir.unwrap())
-                }
-                Err(err) => {
-                    term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap()
-                }
-            }
-
-            match &spanned_stmt.v {
-                saft_ast::Statement::Expr(se) => match interpreter.eval_outer_expr(se) {
-                    Ok(v) => match v.v {
-                        saft_eval::value::Value::Nil => {}
-                        v => println!("{}", v.repr()),
-                    },
-                    Err(err) => {
-                        term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id))
-                            .unwrap()
-                    }
-                },
-
-                _ => match interpreter.exec_outer_statement(&spanned_stmt) {
-                    Ok(..) => {}
-                    Err(err) => {
-                        term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id))
-                            .unwrap()
-                    }
-                },
-            }
+    let stmt = match saft_parser::Parser::new(s).parse_single_statment() {
+        Ok(stmt) => stmt,
+        Err(err) => {
+            term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap();
+            return;
         }
-        Err(err) => term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap(),
     };
+
+    let stmt = match saft_ast_to_ir::Lowerer::new().lower_statement(&stmt) {
+        Ok(ir) => ir.unwrap(),
+        Err(err) => {
+            term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap();
+            return;
+        }
+    };
+
+    match &stmt.v {
+        saft_ir::Stmt::Expr(expr) => {
+            let chunk = match saft_bytecode::compiler::Compiler::new().compile_expr(expr) {
+                Ok(chunk) => chunk,
+                Err(err) => {
+                    term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap();
+                    return;
+                }
+            };
+
+            let mut vm = Vm::new(vec![]);
+            match vm.interpret_expr(Rc::new(chunk)) {
+                Ok(val) => println!("{}", val.repr()),
+                Err(err) => {
+                    term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap();
+                }
+            };
+        }
+        _ => {
+            let chunk = match saft_bytecode::compiler::Compiler::new().compile_stmt(&stmt) {
+                Ok(chunk) => chunk,
+                Err(err) => {
+                    term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap();
+                    return;
+                }
+            };
+
+            let mut vm = Vm::new(vec![]);
+            match vm.interpret_chunk(Rc::new(chunk)) {
+                Ok(()) => {}
+                Err(err) => {
+                    term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap();
+                }
+            };
+        }
+    }
 }
 
-fn interpret_module(interpreter: &mut Interpreter, fname: &str, s: &str) {
+fn interpret_module(fname: &str, s: &str) {
     let mut files = SimpleFiles::new();
     let id = files.add(fname, s);
 
     let writer = StandardStream::stdout(ColorChoice::Auto);
     let config = codespan_reporting::term::Config::default();
-    match saft_parser::Parser::new(s).parse_file() {
-        Ok(module) => {
-            match interpreter.exec_module(module) {
-                Ok(..) => {}
-                Err(err) => {
-                    term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap()
-                }
-            };
+
+    let module = match saft_parser::Parser::new(s).parse_file() {
+        Ok(module) => module,
+        Err(err) => {
+            term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap();
+            return;
         }
-        Err(err) => term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap(),
-    }
+    };
+
+    let module = match saft_ast_to_ir::Lowerer::new().lower_module(&module) {
+        Ok(ir) => ir,
+        Err(err) => {
+            term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap();
+            return;
+        }
+    };
+
+    let chunk = match saft_bytecode::compiler::Compiler::new().compile_module(&module) {
+        Ok(chunk) => chunk,
+        Err(err) => {
+            term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap();
+            return;
+        }
+    };
+
+    let mut vm = Vm::new(vec![]);
+    match vm.interpret_chunk(Rc::new(chunk)) {
+        Ok(()) => {}
+        Err(err) => {
+            term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap();
+        }
+    };
 }

@@ -4,6 +4,7 @@ use saft_common::span::Span;
 
 use crate::op::Op;
 
+#[derive(Debug)]
 pub struct Chunk {
     ops: Vec<Op>,
     spans: Vec<Span>,

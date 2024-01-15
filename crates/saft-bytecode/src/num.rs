@@ -145,6 +145,14 @@ impl Num {
             Num::Float(f) => Num::Float(-*f),
         }
     }
+
+    pub fn repr(&self) -> String {
+        match self {
+            Num::Bool(b) => (if *b { "true" } else { "false" }).into(),
+            Num::Int(i) => format!("{}", i),
+            Num::Float(f) => format!("{:?}", f),
+        }
+    }
 }
 
 impl From<f64> for Num {

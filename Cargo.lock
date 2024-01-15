@@ -576,8 +576,8 @@ dependencies = [
  "rustyline",
  "saft-ast",
  "saft-ast-to-ir",
+ "saft-bytecode",
  "saft-common",
- "saft-eval",
  "saft-ir",
  "saft-lexer",
  "saft-parser",
@@ -604,6 +604,7 @@ dependencies = [
 name = "saft-bytecode"
 version = "0.1.0"
 dependencies = [
+ "codespan-reporting",
  "saft-common",
  "saft-ir",
 ]

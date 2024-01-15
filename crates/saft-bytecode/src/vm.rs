@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use codespan_reporting::diagnostic::{Diagnostic, Label};
 use saft_common::span::Span;
 
 use crate::{chunk::Chunk, num::Num, op::Op, value::Value};
@@ -26,6 +27,24 @@ pub enum Error {
         span: Span,
         note: Option<String>,
     },
+}
+
+impl Error {
+    pub fn diagnostic<FileId>(&self, file_id: FileId) -> Diagnostic<FileId> {
+        match self {
+            Error::Exotic {
+                message,
+                span,
+                note,
+            } => Diagnostic::error().with_message(message).with_labels({
+                let mut label = Label::primary(file_id, span.r.clone());
+                if let Some(note) = note {
+                    label = label.with_message(note);
+                };
+                vec![label]
+            }),
+        }
+    }
 }
 
 macro_rules! exotic {
@@ -63,19 +82,27 @@ impl Vm {
 }
 
 impl Vm {
-    pub fn interpret_chunk(&mut self, chunk: Rc<Chunk>) {
+    pub fn interpret_chunk(&mut self, chunk: Rc<Chunk>) -> Result<(), Error> {
         self.call_stack.push(CallFrame::new(chunk, 0));
 
-        self.run();
+        self.run()
+    }
+
+    pub fn interpret_expr(&mut self, chunk: Rc<Chunk>) -> Result<Value, Error> {
+        self.interpret_chunk(chunk)?;
+        Ok(self.stack.pop().unwrap())
     }
 
     fn run(&mut self) -> Result<(), Error> {
-        let call_frame = self.call_stack.last().unwrap();
-        while call_frame.i < call_frame.chunk.end() {
-            let op = call_frame.chunk.get_op(call_frame.i).unwrap();
-            let s = call_frame.chunk.get_span(call_frame.i).unwrap();
+        while {
+            let call_frame = self.call_stack.last().unwrap();
+            call_frame.i < call_frame.chunk.end()
+        } {
+            let call_frame = self.call_stack.last().unwrap();
+            let op = call_frame.chunk.get_op(call_frame.i).unwrap().clone();
+            let s = call_frame.chunk.get_span(call_frame.i).unwrap().clone();
 
-            self.eval_op(op, s)?;
+            self.eval_op(&op, &s)?;
         }
 
         Ok(())
@@ -97,9 +124,30 @@ impl Vm {
                     self.stack[self.call_stack.last().unwrap().stack_base + stack_ptr].clone();
                 self.stack.push(cpy)
             }
-            Op::JmpFalse(_) => {}
-            Op::JmpTrue(_) => todo!(),
-            Op::Jmp(_) => todo!(),
+            Op::JmpFalse(i) => {
+                if let Value::Num(Num::Bool(b)) = self.stack.pop().unwrap() {
+                    if !b {
+                        self.call_stack.last_mut().unwrap().i = *i;
+                        return Ok(());
+                    }
+                } else {
+                    exotic!("If error", s, "Cannot use a non-bool value as a condition");
+                }
+            }
+            Op::JmpTrue(i) => {
+                if let Value::Num(Num::Bool(b)) = self.stack.pop().unwrap() {
+                    if b {
+                        self.call_stack.last_mut().unwrap().i = *i;
+                        return Ok(());
+                    }
+                } else {
+                    exotic!("If error", s, "Cannot use a non-bool value as a condition");
+                }
+            }
+            Op::Jmp(i) => {
+                self.call_stack.last_mut().unwrap().i = *i;
+                return Ok(());
+            }
             Op::Not => self.unary(|a| a.not(), s, "not")?,
             Op::Negate => self.unary(|a| a.neg(), s, "negation")?,
             Op::Add => self.binop(|a, b| a.add(&b), s, "add")?,
@@ -122,15 +170,17 @@ impl Vm {
             Op::Vec(_) => todo!(),
         }
 
+        self.call_stack.last_mut().unwrap().i += 1;
+
         Ok(())
     }
 
     fn unary<F>(&mut self, f: F, s: &Span, op_type: &'static str) -> Result<(), Error>
     where
-        F: Fn(Value) -> Option<Value>,
+        F: Fn(&Value) -> Option<Value>,
     {
         let val = self.stack.pop().unwrap();
-        match f(val) {
+        match f(&val) {
             Some(val) => self.stack.push(val),
             None => exotic!(
                 "Unary error",
@@ -147,11 +197,11 @@ impl Vm {
 
     fn binop<F>(&mut self, f: F, s: &Span, op_type: &'static str) -> Result<(), Error>
     where
-        F: Fn(Value, Value) -> Option<Value>,
+        F: Fn(&Value, &Value) -> Option<Value>,
     {
         let rhs = self.stack.pop().unwrap();
         let lhs = self.stack.pop().unwrap();
-        match f(lhs, rhs) {
+        match f(&lhs, &rhs) {
             Some(val) => self.stack.push(val),
             None => exotic!(
                 "Binary error",

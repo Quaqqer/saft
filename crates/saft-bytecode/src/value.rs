@@ -127,6 +127,13 @@ impl Value {
             _ => None,
         }
     }
+
+    pub fn repr(&self) -> String {
+        match self {
+            Value::Nil => "nil".into(),
+            Value::Num(num) => num.repr(),
+        }
+    }
 }
 
 impl From<()> for Value {
