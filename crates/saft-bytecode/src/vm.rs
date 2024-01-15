@@ -150,21 +150,27 @@ impl Vm {
             }
             Op::Not => self.unary(|a| a.not(), s, "not")?,
             Op::Negate => self.unary(|a| a.neg(), s, "negation")?,
-            Op::Add => self.binop(|a, b| a.add(&b), s, "add")?,
-            Op::Pow => self.binop(|a, b| a.pow(&b), s, "pow")?,
-            Op::IDiv => self.binop(|a, b| a.idiv(&b), s, "integer division")?,
-            Op::Div => self.binop(|a, b| a.div(&b), s, "division")?,
-            Op::Mul => self.binop(|a, b| a.mul(&b), s, "multiplication")?,
-            Op::Sub => self.binop(|a, b| a.sub(&b), s, "subtraction")?,
-            Op::And => self.binop(|a, b| a.add(&b), s, "addition")?,
-            Op::Or => self.binop(|a, b| a.or(&b).map(Into::into), s, "or")?,
-            Op::Lt => self.binop(|a, b| a.lt(&b).map(Into::into), s, "less than")?,
-            Op::Le => self.binop(|a, b| a.le(&b).map(Into::into), s, "less or equal")?,
-            Op::Gt => self.binop(|a, b| a.gt(&b).map(Into::into), s, "greater than")?,
-            Op::Ge => self.binop(|a, b| a.ge(&b).map(Into::into), s, "greater or equal")?,
-            Op::Eq => self.binop(|a, b| a.eq(&b).map(Into::into), s, "equal")?,
-            Op::Ne => self.binop(|a, b| a.ne(&b).map(Into::into), s, "not equal")?,
-            Op::TrailPop(_) => todo!(),
+            Op::Add => self.binop(|a, b| a.add(b), s, "add")?,
+            Op::Pow => self.binop(|a, b| a.pow(b), s, "pow")?,
+            Op::IDiv => self.binop(|a, b| a.idiv(b), s, "integer division")?,
+            Op::Div => self.binop(|a, b| a.div(b), s, "division")?,
+            Op::Mul => self.binop(|a, b| a.mul(b), s, "multiplication")?,
+            Op::Sub => self.binop(|a, b| a.sub(b), s, "subtraction")?,
+            Op::And => self.binop(|a, b| a.add(b), s, "addition")?,
+            Op::Or => self.binop(|a, b| a.or(b).map(Into::into), s, "or")?,
+            Op::Lt => self.binop(|a, b| a.lt(b).map(Into::into), s, "less than")?,
+            Op::Le => self.binop(|a, b| a.le(b).map(Into::into), s, "less or equal")?,
+            Op::Gt => self.binop(|a, b| a.gt(b).map(Into::into), s, "greater than")?,
+            Op::Ge => self.binop(|a, b| a.ge(b).map(Into::into), s, "greater or equal")?,
+            Op::Eq => self.binop(|a, b| a.eq(b).map(Into::into), s, "equal")?,
+            Op::Ne => self.binop(|a, b| a.ne(b).map(Into::into), s, "not equal")?,
+            Op::TrailPop(n) => {
+                let v = self.stack.pop().unwrap();
+                for _ in 0..*n {
+                    self.stack.pop().unwrap();
+                }
+                self.stack.push(v);
+            }
             Op::Call(_) => todo!(),
             Op::Index => todo!(),
             Op::Vec(_) => todo!(),
@@ -215,6 +221,10 @@ impl Vm {
             ),
         }
         Ok(())
+    }
+
+    pub fn get_stack(&self) -> &Vec<Value> {
+        &self.stack
     }
 }
 

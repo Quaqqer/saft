@@ -137,12 +137,21 @@ fn interpret_stmt(s: &str) {
             };
 
             let mut vm = Vm::new(vec![]);
+
             match vm.interpret_chunk(Rc::new(chunk)) {
                 Ok(()) => {}
                 Err(err) => {
                     term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap();
                 }
             };
+
+            let stack = vm.get_stack();
+            if stack.is_empty() {
+                eprintln!(
+                    "Stack was not zero after execution, something has gone wrong...: {:?}",
+                    stack
+                );
+            }
         }
     }
 }
