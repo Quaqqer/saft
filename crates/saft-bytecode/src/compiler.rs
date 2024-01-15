@@ -177,7 +177,18 @@ impl Compiler {
                     ir::UnaryOp::Not => chunk.emit(Op::Not, s),
                 };
             }
-            ir::Expr::Assign(_, _) => todo!(),
+            ir::Expr::Assign(lexpr, expr) => match &lexpr.v {
+                ir::LExpr::Index(indexable, index) => {
+                    self.compile_expr_(indexable, chunk)?;
+                    self.compile_expr_(index, chunk)?;
+                    self.compile_expr_(expr, chunk)?;
+                    chunk.emit(Op::AssignIndexable, s);
+                }
+                ir::LExpr::Var(ref_) => {
+                    self.compile_expr_(expr, chunk)?;
+                    chunk.emit(Op::Assign(ref_.0), s);
+                }
+            },
             ir::Expr::Binary(lhs, rhs, op) => {
                 let op = match op {
                     ir::BinaryOp::Or => Op::Or,

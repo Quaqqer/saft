@@ -90,7 +90,7 @@ impl Vm {
 
     pub fn interpret_expr(&mut self, chunk: Rc<Chunk>) -> Result<Value, Error> {
         self.interpret_chunk(chunk)?;
-        Ok(self.stack.pop().unwrap())
+        Ok(self.pop())
     }
 
     fn run(&mut self) -> Result<(), Error> {
@@ -111,21 +111,21 @@ impl Vm {
     fn eval_op(&mut self, op: &Op, s: &Span) -> Result<(), Error> {
         match op {
             Op::Pop => {
-                self.stack.pop().unwrap();
+                self.pop();
             }
             Op::PopN(n) => {
                 self.stack.truncate(self.stack.len() - n);
             }
             Op::Return => todo!(),
-            Op::Nil => self.stack.push(Value::Nil),
-            Op::Bool(b) => self.stack.push(Value::Num(Num::Bool(*b))),
-            Op::Float(f) => self.stack.push(Value::Num(Num::Float(*f))),
-            Op::Integer(i) => self.stack.push(Value::Num(Num::Int(*i))),
+            Op::Nil => self.push(Value::Nil),
+            Op::Bool(b) => self.push(Value::Num(Num::Bool(*b))),
+            Op::Float(f) => self.push(Value::Num(Num::Float(*f))),
+            Op::Integer(i) => self.push(Value::Num(Num::Int(*i))),
             Op::String(_) => todo!(),
             Op::Var(stack_ptr) => {
                 let cpy =
                     self.stack[self.call_stack.last().unwrap().stack_base + stack_ptr].clone();
-                self.stack.push(cpy)
+                self.push(cpy)
             }
             Op::JmpFalse(i) => {
                 if let Value::Num(Num::Bool(b)) = self.stack.pop().unwrap() {
@@ -172,11 +172,47 @@ impl Vm {
                 for _ in 0..*n {
                     self.stack.pop().unwrap();
                 }
-                self.stack.push(v);
+                self.push(v);
             }
-            Op::Call(_) => todo!(),
-            Op::Index => todo!(),
+            Op::Call(_) => {}
+            Op::Index => {
+                let index = self.pop();
+                let indexable = self.pop();
+                match indexable.index(&index) {
+                    Some(v) => self.push(v.clone()),
+                    None => exotic!(
+                        "Unindexable",
+                        s,
+                        format!(
+                            "Cannot index '{}' by '{}'",
+                            indexable.ty().name(),
+                            index.ty().name()
+                        )
+                    ),
+                }
+            }
             Op::Vec(_) => todo!(),
+            Op::Assign(i) => {
+                self.stack[*i] = self.stack.last().unwrap().clone();
+            }
+            Op::AssignIndexable => {
+                let value = self.pop();
+                let index = self.pop();
+                let indexable = self.pop();
+                let success = indexable.index_assign(&index, value);
+
+                if !success {
+                    exotic!(
+                        "Unassignable",
+                        s,
+                        format!(
+                            "Cannot assign to '{}' indexed by '{}'",
+                            indexable.ty().name(),
+                            index.ty().name()
+                        )
+                    );
+                };
+            }
         }
 
         self.call_stack.last_mut().unwrap().i += 1;
@@ -184,13 +220,25 @@ impl Vm {
         Ok(())
     }
 
+    fn push(&mut self, v: Value) {
+        self.stack.push(v);
+    }
+
+    fn pop(&mut self) -> Value {
+        self.stack.pop().unwrap()
+    }
+
+    fn peek(&self) -> &Value {
+        self.stack.last().unwrap()
+    }
+
     fn unary<F>(&mut self, f: F, s: &Span, op_type: &'static str) -> Result<(), Error>
     where
         F: Fn(&Value) -> Option<Value>,
     {
-        let val = self.stack.pop().unwrap();
+        let val = self.pop();
         match f(&val) {
-            Some(val) => self.stack.push(val),
+            Some(val) => self.push(val),
             None => exotic!(
                 "Unary error",
                 s,
@@ -208,10 +256,10 @@ impl Vm {
     where
         F: Fn(&Value, &Value) -> Option<Value>,
     {
-        let rhs = self.stack.pop().unwrap();
-        let lhs = self.stack.pop().unwrap();
+        let rhs = self.pop();
+        let lhs = self.pop();
         match f(&lhs, &rhs) {
-            Some(val) => self.stack.push(val),
+            Some(val) => self.push(val),
             None => exotic!(
                 "Binary error",
                 s,

@@ -134,6 +134,14 @@ impl Value {
             Value::Num(num) => num.repr(),
         }
     }
+
+    pub fn index(&self, index: &Value) -> Option<&Value> {
+        None
+    }
+
+    pub fn index_assign(&self, index: &Value, value: Value) -> bool {
+        false
+    }
 }
 
 impl From<()> for Value {

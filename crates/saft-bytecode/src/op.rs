@@ -33,4 +33,6 @@ pub enum Op {
     Index,
     Vec(usize),
     Negate,
+    Assign(usize),
+    AssignIndexable,
 }
