@@ -6,5 +6,5 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-saft-ast = { version = "0.1.0", path = "../saft-ast" }
 saft-common = { version = "0.1.0", path = "../saft-common" }
+saft-ir = { version = "0.1.0", path = "../saft-ir" }

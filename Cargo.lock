@@ -604,8 +604,8 @@ dependencies = [
 name = "saft-bytecode"
 version = "0.1.0"
 dependencies = [
- "saft-ast",
  "saft-common",
+ "saft-ir",
 ]
 
 [[package]]

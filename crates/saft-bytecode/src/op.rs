@@ -30,4 +30,5 @@ pub enum Op {
     Call(usize),
     Index,
     Vec(usize),
+    Negate,
 }

@@ -213,20 +213,23 @@ impl Lowerer {
             ),
             ast::Expr::Grouping(expr) => ir::Expr::Grouping(Box::new(self.lower_expr(expr)?)),
             ast::Expr::Block(block) => ir::Expr::Block(Box::new(self.lower_block(block)?)),
-            ast::Expr::If(cond, body, else_) => ir::Expr::If(ir::If {
+            ast::Expr::If(cond, body, else_) => ir::Expr::If(s.spanned(ir::If {
                 cond: Box::new(self.lower_expr(cond)?),
                 body: Box::new(self.lower_block(body)?),
                 else_: Box::new(
-                    match else_.as_ref().map(|else_| match self.lower_expr(else_)?.v {
-                        ir::Expr::Block(block) => Ok(ir::Else::Block(block.v)),
-                        ir::Expr::If(if_) => Ok(ir::Else::If(if_)),
-                        _ => panic!("Ast else should only contain block or if"),
+                    match else_.as_ref().map(|else_| {
+                        let else_ = self.lower_expr(else_)?;
+                        Ok(else_.s.spanned(match else_.v {
+                            ir::Expr::Block(block) => ir::Else::Block(*block),
+                            ir::Expr::If(if_) => ir::Else::If(if_),
+                            _ => panic!("Ast else should only contain block or if"),
+                        }))
                     }) {
                         Some(v) => Some(v?),
                         None => None,
                     },
                 ),
-            }),
+            })),
             ast::Expr::Loop(stmts) => self.scoped(|l| {
                 l.resolve_statements_items(stmts)?;
                 Ok(ir::Expr::Loop(Box::new(ir::UntailBlock(

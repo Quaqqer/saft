@@ -1,9 +1,11 @@
-use saft_ast as ast;
-use saft_common::span::Spanned;
+use std::borrow::Borrow;
+
+use saft_common::span::{Spanned, Span};
+use saft_ir as ir;
 
 use crate::{chunk::Chunk, op::Op};
 
-enum Error {}
+pub enum Error {}
 
 struct Env {
     base: usize,
@@ -15,13 +17,13 @@ impl Env {
     }
 }
 
-struct Compiler {
-    //
+pub struct Compiler {
     stack_i: usize,
     envs: Vec<Env>,
 }
 
 impl Compiler {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
             stack_i: 0,
@@ -29,7 +31,7 @@ impl Compiler {
         }
     }
 
-    pub fn compile_module(&mut self, module: &ast::Module) -> Result<Chunk, Error> {
+    pub fn compile_module(&mut self, module: &ir::Module) -> Result<Chunk, Error> {
         let mut chunk = Chunk::new();
 
         for stmt in &module.stmts {
@@ -39,31 +41,23 @@ impl Compiler {
         Ok(chunk)
     }
 
-    fn compile_fn(&mut self, function: &ast::Function) -> Result<Chunk, Error> {
+    fn compile_fn(&mut self, function: &ir::Function) -> Result<Chunk, Error> {
         todo!()
     }
 
-    fn compile_stmt(
-        &mut self,
-        stmt: &Spanned<ast::Statement>,
-        chunk: &mut Chunk,
-    ) -> Result<(), Error> {
+    fn compile_stmt(&mut self, stmt: &Spanned<ir::Stmt>, chunk: &mut Chunk) -> Result<(), Error> {
         match &stmt.v {
-            ast::Statement::Expr(e) => {
+            ir::Stmt::Expr(e) => {
                 self.compile_expr(e, chunk)?;
-                chunk.emit(Op::Pop);
+                chunk.emit(Op::Pop, &stmt.s);
             }
-            ast::Statement::Declare { ident, expr } => {
+            ir::Stmt::Declare(ident, expr) => {
                 self.compile_expr(expr, chunk)?;
                 todo!("Declare the variable in the scopes");
             }
-            ast::Statement::Return(e) => {
+            ir::Stmt::Return(e) => {
                 self.compile_expr(e, chunk)?;
-                chunk.emit(Op::Return);
-            }
-            ast::Statement::Item(ast::Item::Function(fun)) => {
-                let fn_chunk = self.compile_fn(fun)?;
-                todo!("create function resource and push function value");
+                chunk.emit(Op::Return, &stmt.s);
             }
         }
 
@@ -72,7 +66,7 @@ impl Compiler {
 
     fn compile_block(
         &mut self,
-        block: &Spanned<ast::Block>,
+        block: &Spanned<ir::Block>,
         chunk: &mut Chunk,
     ) -> Result<(), Error> {
         self.enter_scope();
@@ -83,87 +77,114 @@ impl Compiler {
         if let Some(tail) = &block.v.tail {
             self.compile_expr(tail, chunk)?;
         } else {
-            chunk.emit(Op::Nil);
+            chunk.emit(Op::Nil, &block.s);
         }
 
-        self.exit_scope_trailing(chunk);
+        self.exit_scope_trailing(chunk, &block.s);
 
         Ok(())
     }
 
-    fn compile_expr(&mut self, expr: &Spanned<ast::Expr>, chunk: &mut Chunk) -> Result<(), Error> {
+    fn compile_expr(&mut self, expr: &Spanned<ir::Expr>, chunk: &mut Chunk) -> Result<(), Error> {
+        let s = &expr.s;
         match &expr.v {
-            ast::Expr::Nil => chunk.emit(Op::Nil),
-            ast::Expr::Bool(b) => chunk.emit(Op::Bool(*b)),
-            ast::Expr::Float(f) => chunk.emit(Op::Float(*f)),
-            ast::Expr::Integer(i) => chunk.emit(Op::Integer(*i)),
-            ast::Expr::String(s) => chunk.emit(Op::String(s.clone())),
-            ast::Expr::Var(ident) => {
-                let i = self.lookup(ident)?;
-                todo!()
-            }
-            ast::Expr::Vec(exprs) => {
+            ir::Expr::Nil => chunk.emit(Op::Nil, s),
+            ir::Expr::Bool(b) => chunk.emit(Op::Bool(*b), s),
+            ir::Expr::Float(f) => chunk.emit(Op::Float(*f), s),
+            ir::Expr::Integer(i) => chunk.emit(Op::Integer(*i), s),
+            ir::Expr::String(string) => chunk.emit(Op::String(string.clone()), s),
+            ir::Expr::Var(ident) => match ident {
+                ir::Ref::Item(_) => todo!(),
+                ir::Ref::Var(var_ref) => {
+                    let i = self.lookup(*var_ref)?;
+                    todo!("{}", i)
+                }
+            },
+            ir::Expr::Vec(exprs) => {
                 for expr in exprs {
                     self.compile_expr(expr, chunk)?;
                 }
-                chunk.emit(Op::Vec(exprs.len()));
+                chunk.emit(Op::Vec(exprs.len()), s);
             }
-            ast::Expr::Grouping(box e) => self.compile_expr(e, chunk)?,
-            ast::Expr::Block(block) => self.compile_block(block, chunk)?,
-            ast::Expr::If(cond, body, else_) => {
-                self.compile_expr(cond, chunk)?;
-                let else_jump = chunk.emit_i(Op::JmpFalse(0));
-                self.compile_block(body, chunk)?;
-                let end_jump = chunk.emit_i(Op::Jmp(0));
+            ir::Expr::Grouping(box e) => self.compile_expr(e, chunk)?,
+            ir::Expr::Block(block) => self.compile_block(block, chunk)?,
+            ir::Expr::If(if_) => self.compile_if(if_, chunk)?,
+            ir::Expr::Loop(_) => todo!(),
+            ir::Expr::Break(_) => todo!(),
+            ir::Expr::Unary(expr, op) => {
+                self.compile_expr(expr, chunk)?;
 
-                // Else
-                let else_offset = chunk.end();
-                self.patch_jump(else_jump, else_offset, chunk);
-                if let Some(box else_) = else_ {
-                    self.compile_expr(else_, chunk)?;
-                } else {
-                    chunk.emit(Op::Nil);
-                }
-
-                let end_offset = chunk.end();
-                self.patch_jump(end_jump, end_offset, chunk);
+                match op {
+                    ir::UnaryOp::Plus => {}
+                    ir::UnaryOp::Negate => chunk.emit(Op::Negate, s),
+                    ir::UnaryOp::Not => chunk.emit(Op::Not, s),
+                };
             }
-            ast::Expr::Loop(_) => todo!(),
-            ast::Expr::Break(_) => todo!(),
-            ast::Expr::Neg(_) => todo!(),
-            ast::Expr::Not(e) => {
-                self.compile_expr(e, chunk)?;
-                chunk.emit(Op::Not);
+            ir::Expr::Assign(_, _) => todo!(),
+            ir::Expr::Binary(lhs, rhs, op) => {
+                let op = match op {
+                    ir::BinaryOp::Or => Op::Or,
+                    ir::BinaryOp::And => Op::And,
+                    ir::BinaryOp::Eq => Op::Eq,
+                    ir::BinaryOp::Ne => Op::Ne,
+                    ir::BinaryOp::Lt => Op::Lt,
+                    ir::BinaryOp::Le => Op::Le,
+                    ir::BinaryOp::Gt => Op::Gt,
+                    ir::BinaryOp::Ge => Op::Ge,
+                    ir::BinaryOp::Mul => Op::Mul,
+                    ir::BinaryOp::Div => Op::Div,
+                    ir::BinaryOp::IDiv => Op::IDiv,
+                    ir::BinaryOp::Add => Op::Add,
+                    ir::BinaryOp::Sub => Op::Sub,
+                    ir::BinaryOp::Pow => Op::Pow,
+                };
+                self.binary(chunk, lhs, rhs, op, s)?
             }
-            ast::Expr::Assign(_, _) => todo!(),
-            ast::Expr::Add(lhs, rhs) => self.binary(chunk, lhs, rhs, Op::Add)?,
-            ast::Expr::Sub(lhs, rhs) => self.binary(chunk, lhs, rhs, Op::Sub)?,
-            ast::Expr::Mul(lhs, rhs) => self.binary(chunk, lhs, rhs, Op::Mul)?,
-            ast::Expr::Div(lhs, rhs) => self.binary(chunk, lhs, rhs, Op::Div)?,
-            ast::Expr::IDiv(lhs, rhs) => self.binary(chunk, lhs, rhs, Op::IDiv)?,
-            ast::Expr::Pow(lhs, rhs) => self.binary(chunk, lhs, rhs, Op::Pow)?,
-            ast::Expr::And(lhs, rhs) => self.binary(chunk, lhs, rhs, Op::And)?,
-            ast::Expr::Or(lhs, rhs) => self.binary(chunk, lhs, rhs, Op::Or)?,
-            ast::Expr::Lt(lhs, rhs) => self.binary(chunk, lhs, rhs, Op::Lt)?,
-            ast::Expr::Le(lhs, rhs) => self.binary(chunk, lhs, rhs, Op::Le)?,
-            ast::Expr::Gt(lhs, rhs) => self.binary(chunk, lhs, rhs, Op::Gt)?,
-            ast::Expr::Ge(lhs, rhs) => self.binary(chunk, lhs, rhs, Op::Ge)?,
-            ast::Expr::Eq(lhs, rhs) => self.binary(chunk, lhs, rhs, Op::Eq)?,
-            ast::Expr::Ne(lhs, rhs) => self.binary(chunk, lhs, rhs, Op::Ne)?,
 
-            ast::Expr::Call(callable, args) => {
+            ir::Expr::Call(callable, args) => {
                 self.compile_expr(callable, chunk)?;
                 for arg in args {
                     self.compile_expr(arg, chunk)?;
                 }
-                chunk.emit(Op::Call(args.len()));
+                chunk.emit(Op::Call(args.len()), s);
             }
-            ast::Expr::Index(indexable, index) => {
+            ir::Expr::Index(indexable, index) => {
                 self.compile_expr(indexable, chunk)?;
                 self.compile_expr(index, chunk)?;
-                chunk.emit(Op::Index);
+                chunk.emit(Op::Index, s);
             }
         }
+
+        Ok(())
+    }
+
+    fn compile_if(
+        &mut self,
+        if_: &Spanned<ir::If>,
+        chunk: &mut Chunk,
+    ) -> Result<(), Error> {
+        let ir::If { cond, body, else_ } = &if_.v;
+        let s = &if_.s;
+        self.compile_expr(cond, chunk)?;
+        let else_jump = chunk.emit_i(Op::JmpFalse(0), s);
+        self.compile_block(body, chunk)?;
+        let end_jump = chunk.emit_i(Op::Jmp(0), s);
+
+        // Else
+        let else_offset = chunk.end();
+        self.patch_jump(else_jump, else_offset, chunk);
+        if let box Some(else_) = else_ {
+            match &else_ {
+                ir::Else::If(if_) => self.compile_if(if_, chunk)?,
+                ir::Else::Block(block) => self.compile_block(block, chunk)?,
+            }
+            // self.compile_expr(else_, chunk)?;
+        } else {
+            chunk.emit(Op::Nil, s);
+        }
+
+        let end_offset = chunk.end();
+        self.patch_jump(end_jump, end_offset, chunk);
 
         Ok(())
     }
@@ -172,40 +193,42 @@ impl Compiler {
         self.envs.push(Env::new(self.stack_i));
     }
 
-    fn exit_scope(&mut self, chunk: &mut Chunk) {
+    fn exit_scope(&mut self, chunk: &mut Chunk, span: impl Borrow<Span>) {
         let env = self.envs.pop().unwrap();
         for i in 0..self.stack_i - env.base {
-            chunk.emit(Op::Pop);
+            chunk.emit(Op::Pop, span.borrow());
         }
     }
 
-    fn exit_scope_trailing(&mut self, chunk: &mut Chunk) {
+    fn exit_scope_trailing(&mut self, chunk: &mut Chunk, span: impl Borrow<Span>) {
         let env = self.envs.pop().unwrap();
         let decls = self.stack_i - env.base;
-        chunk.emit(Op::TrailPop(decls))
+        chunk.emit(Op::TrailPop(decls), span)
     }
 
     fn binary(
         &mut self,
         chunk: &mut Chunk,
-        lhs: &Spanned<ast::Expr>,
-        rhs: &Spanned<ast::Expr>,
+        lhs: &Spanned<ir::Expr>,
+        rhs: &Spanned<ir::Expr>,
         op: Op,
+        span: impl Borrow<Span>,
     ) -> Result<(), Error> {
         self.compile_expr(lhs, chunk)?;
         self.compile_expr(rhs, chunk)?;
-        chunk.emit(Op::Add);
+        chunk.emit(op, span);
         Ok(())
     }
 
     fn patch_jump(&self, jump_i: usize, target: usize, chunk: &mut Chunk) {
-        chunk.ops[jump_i] = match chunk.ops[jump_i] {
+        let op = chunk.get_mut_op(jump_i).unwrap();
+        *op = match op {
             Op::JmpFalse(_) => Op::JmpFalse(target),
             _ => panic!("Tried patching something else than a jump"),
         }
     }
 
-    fn lookup(&self, ident: &Spanned<String>) -> Result<usize, Error> {
+    fn lookup(&self, ref_: ir::VarRef) -> Result<usize, Error> {
         todo!()
     }
 }

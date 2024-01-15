@@ -51,7 +51,7 @@ pub enum Expr {
 
     Block(Box<Spanned<Block>>),
 
-    If(If),
+    If(Spanned<If>),
     Loop(Box<UntailBlock>),
     Break(Box<Option<Spanned<Expr>>>),
 
@@ -73,13 +73,13 @@ pub enum LExpr {
 pub struct If {
     pub cond: Box<Spanned<Expr>>,
     pub body: Box<Spanned<Block>>,
-    pub else_: Box<Option<Else>>,
+    pub else_: Box<Option<Spanned<Else>>>,
 }
 
 #[derive(Debug)]
 pub enum Else {
-    Block(Block),
-    If(If),
+    Block(Spanned<Block>),
+    If(Spanned<If>),
 }
 
 #[derive(Debug)]

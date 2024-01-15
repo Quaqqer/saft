@@ -1,5 +1,8 @@
 #![feature(box_patterns)]
 
-mod chunk;
-mod compiler;
-mod op;
+pub mod chunk;
+pub mod compiler;
+pub mod op;
+pub mod vm;
+pub mod num;
+pub mod value;
