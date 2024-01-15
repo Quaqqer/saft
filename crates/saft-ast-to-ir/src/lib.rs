@@ -51,8 +51,13 @@ impl Error {
     }
 }
 
+enum LowererItem {
+    Ir_(Spanned<ir::Item>),
+    Unlowered,
+}
+
 pub struct Lowerer {
-    items: Vec<Spanned<ir::Item>>,
+    items: Vec<LowererItem>,
     scopes: Vec<HashMap<String, ir::Ref>>,
     scope_base: usize,
     var_counter: usize,
@@ -81,22 +86,39 @@ impl Lowerer {
         &mut self,
         stmts: &Vec<Spanned<ast::Statement>>,
     ) -> Result<(), Error> {
-        for stmt in stmts {
-            let s = &stmt.s;
-            if let ast::Statement::Item(item) = &stmt.v {
-                self.resolve_item(&s.spanned(item))?;
-            }
+        let items = stmts
+            .iter()
+            .filter_map(|stmt| match &stmt.v {
+                ast::Statement::Item(item) => Some(stmt.s.spanned(item)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        let item_refs = items
+            .iter()
+            .map(|item| self.new_item(self.item_name(item)))
+            .collect::<Vec<_>>();
+
+        for (item, ref_) in items.iter().zip(item_refs) {
+            let resolved = self.resolve_item(item)?;
+            self.replace_item(ref_, resolved);
         }
+
         Ok(())
     }
 
-    fn resolve_item(&mut self, item: &Spanned<&ast::Item>) -> Result<Spanned<ir::ItemRef>, Error> {
+    fn item_name(&self, item: &Spanned<&ast::Item>) -> Spanned<String> {
+        match &item.v {
+            ast::Item::Function(ast::Function { ident, .. }) => ident.clone(),
+        }
+    }
+
+    fn resolve_item(&mut self, item: &Spanned<&ast::Item>) -> Result<Spanned<ir::Item>, Error> {
         let Spanned { s, v: item } = item;
 
         Ok(s.spanned(match item {
             ast::Item::Function(fun @ ast::Function { ident, .. }) => {
-                let item = s.spanned(ir::Item::Function(self.lower_item_fn(fun)?));
-                self.new_item(ident, item)
+                ir::Item::Function(self.lower_item_fn(fun)?)
             }
         }))
     }
@@ -129,7 +151,14 @@ impl Lowerer {
             .try_collect::<Vec<_>>()?;
 
         Ok(ir::Module {
-            items: self.items,
+            items: self
+                .items
+                .into_iter()
+                .map(|li| match li {
+                    LowererItem::Ir_(itm) => itm,
+                    LowererItem::Unlowered => panic!("Should be no unlowered items left now"),
+                })
+                .collect::<Vec<_>>(),
             stmts,
         })
     }
@@ -384,14 +413,18 @@ impl Lowerer {
         )
     }
 
-    fn new_item(&mut self, ident: &Spanned<ast::Ident>, item: Spanned<ir::Item>) -> ir::ItemRef {
+    fn new_item(&mut self, ident: Spanned<ast::Ident>) -> ir::ItemRef {
         let ref_ = ir::ItemRef(self.items.len());
-        self.items.push(item);
+        self.items.push(LowererItem::Unlowered);
         self.scopes
             .last_mut()
             .unwrap()
             .insert(ident.v.clone(), ir::Ref::Item(ref_));
         ref_
+    }
+
+    fn replace_item(&mut self, ref_: ir::ItemRef, item: Spanned<ir::Item>) {
+        self.items[ref_.0] = LowererItem::Ir_(item);
     }
 
     fn new_varref(&mut self) -> ir::VarRef {
