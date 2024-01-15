@@ -82,10 +82,7 @@ impl Lowerer {
         self.resolve_statements_items(&block.stmts)
     }
 
-    fn resolve_statements_items(
-        &mut self,
-        stmts: &Vec<Spanned<ast::Statement>>,
-    ) -> Result<(), Error> {
+    fn resolve_statements_items(&mut self, stmts: &[Spanned<ast::Statement>]) -> Result<(), Error> {
         let items = stmts
             .iter()
             .filter_map(|stmt| match &stmt.v {
@@ -117,9 +114,7 @@ impl Lowerer {
         let Spanned { s, v: item } = item;
 
         Ok(s.spanned(match item {
-            ast::Item::Function(fun @ ast::Function { ident, .. }) => {
-                ir::Item::Function(self.lower_item_fn(fun)?)
-            }
+            ast::Item::Function(fun) => ir::Item::Function(self.lower_item_fn(fun)?),
         }))
     }
 

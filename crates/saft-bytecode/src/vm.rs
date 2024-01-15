@@ -113,6 +113,9 @@ impl Vm {
             Op::Pop => {
                 self.stack.pop().unwrap();
             }
+            Op::PopN(n) => {
+                self.stack.truncate(self.stack.len() - n);
+            }
             Op::Return => todo!(),
             Op::Nil => self.stack.push(Value::Nil),
             Op::Bool(b) => self.stack.push(Value::Num(Num::Bool(*b))),

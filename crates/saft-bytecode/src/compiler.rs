@@ -1,4 +1,4 @@
-use std::borrow::Borrow;
+use std::{borrow::Borrow, collections::HashMap};
 
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use saft_common::span::{Span, Spanned};
@@ -50,19 +50,20 @@ macro_rules! exotic {
     };
 }
 
-struct Env {
-    base: usize,
+struct Scope {
+    stack_base: usize,
 }
 
-impl Env {
-    pub fn new(base: usize) -> Self {
-        Self { base }
+impl Scope {
+    pub fn new(stack_base: usize) -> Self {
+        Self { stack_base }
     }
 }
 
 pub struct Compiler {
     stack_i: usize,
-    envs: Vec<Env>,
+    scopes: Vec<Scope>,
+    ref_offsets: HashMap<ir::VarRef, usize>,
 }
 
 impl Compiler {
@@ -70,7 +71,8 @@ impl Compiler {
     pub fn new() -> Self {
         Self {
             stack_i: 0,
-            envs: vec![Env::new(0)],
+            scopes: vec![Scope::new(0)],
+            ref_offsets: HashMap::new(),
         }
     }
 
@@ -102,7 +104,7 @@ impl Compiler {
             }
             ir::Stmt::Declare(ident, expr) => {
                 self.compile_expr_(expr, chunk)?;
-                todo!("Declare the variable in the scopes");
+                self.declare(ident.v);
             }
             ir::Stmt::Return(e) => {
                 self.compile_expr_(e, chunk)?;
@@ -152,7 +154,7 @@ impl Compiler {
                 ir::Ref::Item(_) => todo!(),
                 ir::Ref::Var(var_ref) => {
                     let i = self.lookup(*var_ref)?;
-                    todo!("{}", i)
+                    chunk.emit(Op::Var(i), s);
                 }
             },
             ir::Expr::Vec(exprs) => {
@@ -229,7 +231,6 @@ impl Compiler {
                 ir::Else::If(if_) => self.compile_if(if_, chunk)?,
                 ir::Else::Block(block) => self.compile_block(block, chunk)?,
             }
-            // self.compile_expr(else_, chunk)?;
         } else {
             chunk.emit(Op::Nil, s);
         }
@@ -241,19 +242,17 @@ impl Compiler {
     }
 
     fn enter_scope(&mut self) {
-        self.envs.push(Env::new(self.stack_i));
+        self.scopes.push(Scope::new(self.stack_i));
     }
 
     fn exit_scope(&mut self, chunk: &mut Chunk, span: impl Borrow<Span>) {
-        let env = self.envs.pop().unwrap();
-        for i in 0..self.stack_i - env.base {
-            chunk.emit(Op::Pop, span.borrow());
-        }
+        let env = self.scopes.pop().unwrap();
+        chunk.emit(Op::PopN(self.stack_i - env.stack_base), span);
     }
 
     fn exit_scope_trailing(&mut self, chunk: &mut Chunk, span: impl Borrow<Span>) {
-        let env = self.envs.pop().unwrap();
-        let decls = self.stack_i - env.base;
+        let env = self.scopes.pop().unwrap();
+        let decls = self.stack_i - env.stack_base;
         chunk.emit(Op::TrailPop(decls), span)
     }
 
@@ -275,11 +274,18 @@ impl Compiler {
         let op = chunk.get_mut_op(jump_i).unwrap();
         *op = match op {
             Op::JmpFalse(_) => Op::JmpFalse(target),
+            Op::JmpTrue(_) => Op::JmpTrue(target),
+            Op::Jmp(_) => Op::Jmp(target),
             _ => panic!("Tried patching something else than a jump"),
         }
     }
 
     fn lookup(&self, ref_: ir::VarRef) -> Result<usize, Error> {
-        todo!()
+        Ok(*self.ref_offsets.get(&ref_).unwrap())
+    }
+
+    fn declare(&mut self, ident: ir::VarRef) {
+        self.ref_offsets.insert(ident, self.stack_i);
+        self.stack_i += 1;
     }
 }

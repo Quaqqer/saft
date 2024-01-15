@@ -1,6 +1,7 @@
 #[derive(Debug, Clone)]
 pub enum Op {
     Pop,
+    PopN(usize),
     Return,
     Nil,
     Bool(bool),
