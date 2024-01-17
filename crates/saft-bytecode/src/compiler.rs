@@ -1,10 +1,10 @@
-use std::{borrow::Borrow, collections::HashMap};
+use std::{borrow::Borrow, collections::HashMap, rc::Rc};
 
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use saft_common::span::{Span, Spanned};
 use saft_ir as ir;
 
-use crate::{chunk::Chunk, op::Op};
+use crate::{chunk::Chunk, item::Item, op::Op, value::SaftFunction};
 
 pub enum Error {
     Exotic {
@@ -32,6 +32,7 @@ impl Error {
     }
 }
 
+#[allow(unused)]
 macro_rules! exotic {
     ($msg:expr, $span:expr) => {
         return Err(Error::Exotic {
@@ -64,6 +65,7 @@ pub struct Compiler {
     stack_i: usize,
     scopes: Vec<Scope>,
     ref_offsets: HashMap<ir::VarRef, usize>,
+    items: Vec<Item>,
 }
 
 impl Compiler {
@@ -73,21 +75,63 @@ impl Compiler {
             stack_i: 0,
             scopes: vec![Scope::new(0)],
             ref_offsets: HashMap::new(),
+            items: vec![],
         }
     }
 
-    pub fn compile_module(&mut self, module: &ir::Module) -> Result<Chunk, Error> {
+    pub fn compile_module(&mut self, module: &ir::Module) -> Result<(Chunk, Vec<Item>), Error> {
         let mut chunk = Chunk::new();
+
+        let mut items = module
+            .items
+            .iter()
+            .map(|item| {
+                Ok::<_, Error>(match &item.v {
+                    ir::Item::Function(function) => {
+                        Item::SaftFunction(self.compile_fn(item.s.spanned(function))?)
+                    }
+                })
+            })
+            .try_collect::<Vec<_>>()?;
+
+        self.items.append(&mut items);
 
         for stmt in &module.stmts {
             self.compile_stmt_(stmt, &mut chunk)?
         }
 
-        Ok(chunk)
+        Ok((chunk, self.items.clone()))
     }
 
-    fn compile_fn(&mut self, function: &ir::Function) -> Result<Chunk, Error> {
-        todo!()
+    fn compile_fn(&mut self, function: Spanned<&ir::Function>) -> Result<Rc<SaftFunction>, Error> {
+        fn inner(
+            compiler: &mut Compiler,
+            function: Spanned<&ir::Function>,
+        ) -> Result<Rc<SaftFunction>, Error> {
+            let Spanned { s, v: function } = function;
+            let ir::Function { params, body } = function;
+
+            let mut chunk = Chunk::new();
+            for param in params {
+                compiler.declare(param.v);
+            }
+
+            compiler.compile_block(body, &mut chunk)?;
+            chunk.emit(Op::Return, s);
+
+            Ok(Rc::new(SaftFunction {
+                arity: params.len(),
+                chunk,
+            }))
+        }
+
+        let prev_i = self.stack_i;
+
+        let res = inner(self, function);
+
+        self.stack_i = prev_i;
+
+        res
     }
 
     pub fn compile_stmt(&mut self, stmt: &Spanned<ir::Stmt>) -> Result<Chunk, Error> {
@@ -151,7 +195,7 @@ impl Compiler {
             ir::Expr::Integer(i) => chunk.emit(Op::Integer(*i), s),
             ir::Expr::String(string) => chunk.emit(Op::String(string.clone()), s),
             ir::Expr::Var(ident) => match ident {
-                ir::Ref::Item(_) => todo!(),
+                ir::Ref::Item(item_ref) => chunk.emit(Op::Item(item_ref.0), s),
                 ir::Ref::Var(var_ref) => {
                     let i = self.lookup(*var_ref)?;
                     chunk.emit(Op::Var(i), s);
@@ -256,6 +300,7 @@ impl Compiler {
         self.scopes.push(Scope::new(self.stack_i));
     }
 
+    #[allow(unused)]
     fn exit_scope(&mut self, chunk: &mut Chunk, span: impl Borrow<Span>) {
         let env = self.scopes.pop().unwrap();
         chunk.emit(Op::PopN(self.stack_i - env.stack_base), span);

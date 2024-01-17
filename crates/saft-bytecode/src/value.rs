@@ -1,9 +1,23 @@
-use crate::num::Num;
+use std::rc::Rc;
+
+use crate::{chunk::Chunk, num::Num};
 
 #[derive(Debug, Clone)]
 pub enum Value {
     Nil,
     Num(Num),
+    Function(Function),
+}
+
+#[derive(Debug, Clone)]
+pub enum Function {
+    SaftFunction(Rc<SaftFunction>),
+}
+
+#[derive(Debug)]
+pub struct SaftFunction {
+    pub arity: usize,
+    pub chunk: Chunk,
 }
 
 impl Value {
@@ -23,7 +37,7 @@ impl Value {
 
     pub fn eq(&self, rhs: &Value) -> Option<bool> {
         match (self, rhs) {
-            (Value::Num(a), Value::Num(b)) => Some(a.eq(b).into()),
+            (Value::Num(a), Value::Num(b)) => Some(a.eq(b)),
             _ => None,
         }
     }
@@ -37,14 +51,14 @@ impl Value {
 
     pub fn lt(&self, rhs: &Value) -> Option<bool> {
         match (self, rhs) {
-            (Value::Num(a), Value::Num(b)) => Some(a.lt(b).into()),
+            (Value::Num(a), Value::Num(b)) => Some(a.lt(b)),
             _ => None,
         }
     }
 
     pub fn le(&self, rhs: &Value) -> Option<bool> {
         match (self, rhs) {
-            (Value::Num(a), Value::Num(b)) => Some(a.le(b).into()),
+            (Value::Num(a), Value::Num(b)) => Some(a.le(b)),
             _ => None,
         }
     }
@@ -118,6 +132,7 @@ impl Value {
             Value::Num(Num::Bool(_)) => ValueType::Bool,
             Value::Num(Num::Int(_)) => ValueType::Int,
             Value::Num(Num::Float(_)) => ValueType::Float,
+            Value::Function(_) => ValueType::Function,
         }
     }
 
@@ -132,20 +147,21 @@ impl Value {
         match self {
             Value::Nil => "nil".into(),
             Value::Num(num) => num.repr(),
+            Value::Function(_) => "<function>".into(),
         }
     }
 
-    pub fn index(&self, index: &Value) -> Option<&Value> {
+    pub fn index(&self, _index: &Value) -> Option<&Value> {
         None
     }
 
-    pub fn index_assign(&self, index: &Value, value: Value) -> bool {
+    pub fn index_assign(&self, _index: &Value, _value: Value) -> bool {
         false
     }
 }
 
 impl From<()> for Value {
-    fn from(value: ()) -> Self {
+    fn from(_value: ()) -> Self {
         Value::Nil
     }
 }
@@ -227,6 +243,7 @@ pub enum ValueType {
     Bool,
     Int,
     Float,
+    Function,
 }
 
 impl ValueType {
@@ -236,6 +253,7 @@ impl ValueType {
             ValueType::Bool => "bool",
             ValueType::Int => "int",
             ValueType::Float => "float",
+            ValueType::Function => "function",
         }
     }
 }

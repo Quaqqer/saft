@@ -35,4 +35,5 @@ pub enum Op {
     Negate,
     Assign(usize),
     AssignIndexable,
+    Item(usize),
 }

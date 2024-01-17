@@ -11,6 +11,7 @@ pub struct Chunk {
 }
 
 impl Chunk {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
             ops: Vec::new(),

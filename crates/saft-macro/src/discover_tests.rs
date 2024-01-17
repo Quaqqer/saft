@@ -69,7 +69,7 @@ pub fn expand_discover_tests(
         for (i, part) in &parts {
             let last = *i == parts.len() - 1;
 
-            const CLASH_MSG: &'static str = "File and directory name clash, a directory and a name cannot exist with the same name in the same path";
+            const CLASH_MSG: &str = "File and directory name clash, a directory and a name cannot exist with the same name in the same path";
 
             let TestNode::Node(children) = curr else {
                 panic!("{}", CLASH_MSG)

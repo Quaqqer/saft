@@ -39,6 +39,7 @@ impl Num {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn eq(&self, rhs: &Num) -> bool {
         match self.binary_upcast(rhs) {
             (Num::Int(a), Num::Int(b)) => a == b,

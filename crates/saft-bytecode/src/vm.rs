@@ -3,7 +3,13 @@ use std::rc::Rc;
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use saft_common::span::Span;
 
-use crate::{chunk::Chunk, num::Num, op::Op, value::Value};
+use crate::{
+    chunk::Chunk,
+    item::Item,
+    num::Num,
+    op::Op,
+    value::{Function, Value},
+};
 
 struct CallFrame {
     i: usize,
@@ -68,16 +74,21 @@ macro_rules! exotic {
 pub struct Vm {
     call_stack: Vec<CallFrame>,
     stack: Vec<Value>,
-    items: Vec<VmItem>,
+    items: Vec<Item>,
 }
 
 impl Vm {
-    pub fn new(items: Vec<VmItem>) -> Self {
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
         Self {
             call_stack: Vec::new(),
             stack: Vec::new(),
-            items,
+            items: Vec::new(),
         }
+    }
+
+    pub fn add_items(&mut self, mut items: Vec<Item>) {
+        self.items.append(&mut items);
     }
 }
 
@@ -213,6 +224,13 @@ impl Vm {
                     );
                 };
             }
+            Op::Item(ref_) => match &self.items[*ref_] {
+                Item::SaftFunction(saft_function) => {
+                    self.push(Value::Function(Function::SaftFunction(
+                        saft_function.clone(),
+                    )));
+                }
+            },
         }
 
         self.call_stack.last_mut().unwrap().i += 1;
@@ -228,6 +246,7 @@ impl Vm {
         self.stack.pop().unwrap()
     }
 
+    #[allow(unused)]
     fn peek(&self) -> &Value {
         self.stack.last().unwrap()
     }
@@ -277,13 +296,4 @@ impl Vm {
     pub fn get_stack(&self) -> &Vec<Value> {
         &self.stack
     }
-}
-
-pub enum VmItem {
-    SaftFunction(SaftFunction),
-}
-
-struct SaftFunction {
-    pub arity: usize,
-    pub body: Rc<Chunk>,
 }
