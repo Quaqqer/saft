@@ -303,13 +303,20 @@ impl Compiler {
     #[allow(unused)]
     fn exit_scope(&mut self, chunk: &mut Chunk, span: impl Borrow<Span>) {
         let env = self.scopes.pop().unwrap();
-        chunk.emit(Op::PopN(self.stack_i - env.stack_base), span);
+
+        let to_pop = self.stack_i - env.stack_base;
+        if 0 < to_pop {
+            chunk.emit(Op::PopN(to_pop), span);
+        }
     }
 
     fn exit_scope_trailing(&mut self, chunk: &mut Chunk, span: impl Borrow<Span>) {
         let env = self.scopes.pop().unwrap();
         let decls = self.stack_i - env.stack_base;
-        chunk.emit(Op::TrailPop(decls), span)
+
+        if 0 < decls {
+            chunk.emit(Op::TrailPop(decls), span)
+        }
     }
 
     fn binary(
