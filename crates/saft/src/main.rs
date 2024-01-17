@@ -69,7 +69,12 @@ impl Saft {
         }
     }
 
-    fn try_lower(&mut self, fname: &str, s: &str, module: &ast::Module) -> Option<ir::Module> {
+    fn try_lower(
+        &mut self,
+        fname: &str,
+        s: &str,
+        module: &ast::Module,
+    ) -> Option<ir::Module<bytecode::item::NativeFunction>> {
         let mut files = SimpleFiles::new();
         let id = files.add(fname, s);
 
@@ -92,7 +97,7 @@ impl Saft {
         &mut self,
         fname: &str,
         s: &str,
-        module: &ir::Module,
+        module: &ir::Module<bytecode::item::NativeFunction>,
     ) -> Option<(bytecode::chunk::Chunk, Vec<bytecode::item::Item>)> {
         let mut files = SimpleFiles::new();
         let id = files.add(fname, s);

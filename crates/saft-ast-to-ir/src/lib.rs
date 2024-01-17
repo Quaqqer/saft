@@ -51,19 +51,19 @@ impl Error {
     }
 }
 
-enum LowererItem {
-    Ir_(Spanned<ir::Item>),
+enum LowererItem<N> {
+    Ir_(Spanned<ir::Item<N>>),
     Unlowered,
 }
 
-pub struct Lowerer {
-    items: Vec<LowererItem>,
+pub struct Lowerer<N> {
+    items: Vec<LowererItem<N>>,
     scopes: Vec<HashMap<String, ir::Ref>>,
     scope_base: usize,
     var_counter: usize,
 }
 
-impl Lowerer {
+impl<N> Lowerer<N> {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
@@ -110,7 +110,7 @@ impl Lowerer {
         }
     }
 
-    fn resolve_item(&mut self, item: &Spanned<&ast::Item>) -> Result<Spanned<ir::Item>, Error> {
+    fn resolve_item(&mut self, item: &Spanned<&ast::Item>) -> Result<Spanned<ir::Item<N>>, Error> {
         let Spanned { s, v: item } = item;
 
         Ok(s.spanned(match item {
@@ -132,7 +132,7 @@ impl Lowerer {
         })
     }
 
-    pub fn lower_module(mut self, module: &ast::Module) -> Result<ir::Module, Error> {
+    pub fn lower_module(mut self, module: &ast::Module) -> Result<ir::Module<N>, Error> {
         self.resolve_module_items(module)?;
 
         let stmts = module
@@ -207,8 +207,8 @@ impl Lowerer {
     }
 
     fn lower_expr(&mut self, expr: &Spanned<ast::Expr>) -> Result<Spanned<ir::Expr>, Error> {
-        fn binary(
-            lowerer: &mut Lowerer,
+        fn binary<N>(
+            lowerer: &mut Lowerer<N>,
             lhs: &Spanned<ast::Expr>,
             rhs: &Spanned<ast::Expr>,
             op: ir::BinaryOp,
@@ -418,7 +418,7 @@ impl Lowerer {
         ref_
     }
 
-    fn replace_item(&mut self, ref_: ir::ItemRef, item: Spanned<ir::Item>) {
+    fn replace_item(&mut self, ref_: ir::ItemRef, item: Spanned<ir::Item<N>>) {
         self.items[ref_.0] = LowererItem::Ir_(item);
     }
 
