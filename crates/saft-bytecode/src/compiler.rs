@@ -103,11 +103,11 @@ impl Compiler {
         Ok((chunk, self.items.clone()))
     }
 
-    fn compile_fn(&mut self, function: Spanned<&ir::Function>) -> Result<Rc<SaftFunction>, Error> {
+    fn compile_fn(&mut self, function: Spanned<&ir::Function>) -> Result<SaftFunction, Error> {
         fn inner(
             compiler: &mut Compiler,
             function: Spanned<&ir::Function>,
-        ) -> Result<Rc<SaftFunction>, Error> {
+        ) -> Result<SaftFunction, Error> {
             let Spanned { s, v: function } = function;
             let ir::Function { params, body } = function;
 
@@ -119,10 +119,10 @@ impl Compiler {
             compiler.compile_block(body, &mut chunk)?;
             chunk.emit(Op::Return, s);
 
-            Ok(Rc::new(SaftFunction {
+            Ok(SaftFunction {
                 arity: params.len(),
-                chunk,
-            }))
+                chunk: Rc::new(chunk),
+            })
         }
 
         let prev_i = self.stack_i;

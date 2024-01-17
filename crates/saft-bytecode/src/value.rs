@@ -11,13 +11,13 @@ pub enum Value {
 
 #[derive(Debug, Clone)]
 pub enum Function {
-    SaftFunction(Rc<SaftFunction>),
+    SaftFunction(SaftFunction),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SaftFunction {
     pub arity: usize,
-    pub chunk: Chunk,
+    pub chunk: Rc<Chunk>,
 }
 
 impl Value {

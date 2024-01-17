@@ -1,8 +1,6 @@
-use std::rc::Rc;
-
 use crate::value::SaftFunction;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Item {
-    SaftFunction(Rc<SaftFunction>),
+    SaftFunction(SaftFunction),
 }
