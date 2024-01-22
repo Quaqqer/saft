@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     fs::{self, create_dir_all, File},
     path::PathBuf,
     rc::Rc,
@@ -26,10 +25,6 @@ struct Args {
 }
 
 pub struct Saft {
-    var_counter: usize,
-    item_counter: usize,
-    outer_scope: HashMap<String, saft_ir::Ref>,
-
     vm: Vm,
     diagnostic_writer: StandardStream,
     diagnostic_config: codespan_reporting::term::Config,
@@ -39,9 +34,6 @@ pub struct Saft {
 impl Saft {
     pub fn new() -> Self {
         Self {
-            var_counter: 0,
-            item_counter: 0,
-            outer_scope: HashMap::new(),
             vm: Vm::new(),
             diagnostic_writer: codespan_reporting::term::termcolor::StandardStream::stdout(
                 codespan_reporting::term::termcolor::ColorChoice::Auto,
@@ -74,7 +66,7 @@ impl Saft {
         fname: &str,
         s: &str,
         module: &ast::Module,
-    ) -> Option<ir::Module<bytecode::item::NativeFunction>> {
+    ) -> Option<ir::Module<bytecode::constant::NativeFunction>> {
         let mut files = SimpleFiles::new();
         let id = files.add(fname, s);
 
@@ -97,8 +89,8 @@ impl Saft {
         &mut self,
         fname: &str,
         s: &str,
-        module: &ir::Module<bytecode::item::NativeFunction>,
-    ) -> Option<(bytecode::chunk::Chunk, Vec<bytecode::item::Item>)> {
+        module: &ir::Module<bytecode::constant::NativeFunction>,
+    ) -> Option<(bytecode::chunk::Chunk, Vec<bytecode::constant::Constant>)> {
         let mut files = SimpleFiles::new();
         let id = files.add(fname, s);
 
@@ -141,82 +133,11 @@ impl Saft {
         let ir = self.try_lower(fname, s, &ast)?;
         let (chunk, items) = self.try_compile(fname, s, &ir)?;
 
-        self.vm.add_items(items);
+        self.vm.add_constant(items);
         self.try_interpret(fname, s, Rc::new(chunk))?;
 
         Some(())
     }
-
-    // fn interpret_stmt(&mut self, s: &str) {
-    //     let mut files = SimpleFiles::new();
-    //     let id = files.add("stdin", s);
-    //
-    //     let writer = StandardStream::stdout(ColorChoice::Auto);
-    //     let config = codespan_reporting::term::Config::default();
-    //
-    //     let stmt = match saft_parser::Parser::new(s).parse_single_statment() {
-    //         Ok(stmt) => stmt,
-    //         Err(err) => {
-    //             term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap();
-    //             return;
-    //         }
-    //     };
-    //
-    //     let stmt = match saft_ast_to_ir::Lowerer::new().lower_statement(&stmt) {
-    //         Ok(ir) => ir.unwrap(),
-    //         Err(err) => {
-    //             term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id)).unwrap();
-    //             return;
-    //         }
-    //     };
-    //
-    //     match &stmt.v {
-    //         saft_ir::Stmt::Expr(expr) => {
-    //             let chunk = match saft_bytecode::compiler::Compiler::new().compile_expr(expr) {
-    //                 Ok(chunk) => chunk,
-    //                 Err(err) => {
-    //                     term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id))
-    //                         .unwrap();
-    //                     return;
-    //                 }
-    //             };
-    //
-    //             match self.vm.interpret_expr(Rc::new(chunk)) {
-    //                 Ok(val) => println!("{}", val.repr()),
-    //                 Err(err) => {
-    //                     term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id))
-    //                         .unwrap();
-    //                 }
-    //             };
-    //         }
-    //         _ => {
-    //             let chunk = match saft_bytecode::compiler::Compiler::new().compile_stmt(&stmt) {
-    //                 Ok(chunk) => chunk,
-    //                 Err(err) => {
-    //                     term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id))
-    //                         .unwrap();
-    //                     return;
-    //                 }
-    //             };
-    //
-    //             match self.vm.interpret_chunk(Rc::new(chunk)) {
-    //                 Ok(()) => {}
-    //                 Err(err) => {
-    //                     term::emit(&mut writer.lock(), &config, &files, &err.diagnostic(id))
-    //                         .unwrap();
-    //                 }
-    //             };
-    //
-    //             let stack = self.vm.get_stack();
-    //             if stack.is_empty() {
-    //                 eprintln!(
-    //                     "Stack was not zero after execution, something has gone wrong...: {:?}",
-    //                     stack
-    //                 );
-    //             }
-    //         }
-    //     }
-    // }
 }
 
 fn main() {

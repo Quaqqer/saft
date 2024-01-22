@@ -5,7 +5,7 @@ use saft_common::span::Span;
 
 use crate::{
     chunk::Chunk,
-    item::Item,
+    constant::Constant,
     num::Num,
     op::Op,
     value::{Function, Value},
@@ -74,7 +74,7 @@ macro_rules! exotic {
 pub struct Vm {
     call_stack: Vec<CallFrame>,
     stack: Vec<Value>,
-    items: Vec<Item>,
+    constants: Vec<Constant>,
 }
 
 impl Vm {
@@ -83,12 +83,12 @@ impl Vm {
         Self {
             call_stack: Vec::new(),
             stack: Vec::new(),
-            items: Vec::new(),
+            constants: Vec::new(),
         }
     }
 
-    pub fn add_items(&mut self, mut items: Vec<Item>) {
-        self.items.append(&mut items);
+    pub fn add_constant(&mut self, mut constants: Vec<Constant>) {
+        self.constants.append(&mut constants);
     }
 }
 
@@ -110,8 +110,6 @@ impl Vm {
     }
 
     fn run(&mut self) -> Result<(), Error> {
-        // println!("{:?}", self.call_stack.last().unwrap().chunk);
-        // println!("{:?}", self.items);
         while {
             let call_frame = self.call_stack.last().unwrap();
             call_frame.i < call_frame.chunk.end()
@@ -266,8 +264,8 @@ impl Vm {
                     );
                 };
             }
-            Op::Item(ref_) => match &self.items[*ref_] {
-                Item::SaftFunction(saft_function) => {
+            Op::Constant(ref_) => match &self.constants[*ref_] {
+                Constant::SaftFunction(saft_function) => {
                     self.push(Value::Function(Function::SaftFunction(
                         saft_function.clone(),
                     )));

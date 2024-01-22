@@ -14,15 +14,15 @@ pub struct ItemRef(pub usize);
 pub struct VarRef(pub usize);
 
 #[derive(Debug)]
-pub struct Module<NativeFunction> {
-    pub items: Vec<Spanned<Item<NativeFunction>>>,
+pub struct Module<Builtin> {
+    pub items: Vec<Spanned<Item<Builtin>>>,
     pub stmts: Vec<Spanned<Stmt>>,
 }
 
 #[derive(Debug)]
-pub enum Item<NativeFunction> {
+pub enum Item<Builtin> {
     Function(Function),
-    NativeFunction(NativeFunction),
+    Builtin(Builtin),
 }
 
 #[derive(Debug)]

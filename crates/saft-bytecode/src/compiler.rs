@@ -6,7 +6,7 @@ use saft_ir as ir;
 
 use crate::{
     chunk::Chunk,
-    item::{Item, NativeFunction},
+    constant::{Constant, NativeFunction},
     op::Op,
     value::SaftFunction,
 };
@@ -70,7 +70,7 @@ pub struct Compiler {
     stack_i: usize,
     scopes: Vec<Scope>,
     ref_offsets: HashMap<ir::VarRef, usize>,
-    items: Vec<Item>,
+    items: Vec<Constant>,
 }
 
 impl Compiler {
@@ -87,7 +87,7 @@ impl Compiler {
     pub fn compile_module(
         &mut self,
         module: &ir::Module<NativeFunction>,
-    ) -> Result<(Chunk, Vec<Item>), Error> {
+    ) -> Result<(Chunk, Vec<Constant>), Error> {
         let mut chunk = Chunk::new();
 
         let mut items = module
@@ -96,9 +96,9 @@ impl Compiler {
             .map(|item| {
                 Ok::<_, Error>(match &item.v {
                     ir::Item::Function(function) => {
-                        Item::SaftFunction(self.compile_fn(item.s.spanned(function))?)
+                        Constant::SaftFunction(self.compile_fn(item.s.spanned(function))?)
                     }
-                    ir::Item::NativeFunction(_) => todo!(),
+                    ir::Item::Builtin(_) => todo!(),
                 })
             })
             .try_collect::<Vec<_>>()?;
@@ -204,7 +204,7 @@ impl Compiler {
             ir::Expr::Integer(i) => chunk.emit(Op::Integer(*i), s),
             ir::Expr::String(string) => chunk.emit(Op::String(string.clone()), s),
             ir::Expr::Var(ident) => match ident {
-                ir::Ref::Item(item_ref) => chunk.emit(Op::Item(item_ref.0), s),
+                ir::Ref::Item(item_ref) => chunk.emit(Op::Constant(item_ref.0), s),
                 ir::Ref::Var(var_ref) => {
                     let i = self.lookup(*var_ref)?;
                     chunk.emit(Op::Var(i), s);

@@ -2,7 +2,7 @@
 
 pub mod chunk;
 pub mod compiler;
-pub mod item;
+pub mod constant;
 pub mod num;
 pub mod op;
 pub mod value;

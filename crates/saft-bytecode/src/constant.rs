@@ -1,10 +1,10 @@
 use crate::{value::SaftFunction, vm};
 
 #[derive(Clone, Debug)]
-pub enum Item {
+pub enum Constant {
     SaftFunction(SaftFunction),
 }
 
 pub struct NativeFunction {
-    f: fn(&mut vm::Vm) -> Result<(), vm::Error>,
+    _f: fn(&mut vm::Vm) -> Result<(), vm::Error>,
 }
