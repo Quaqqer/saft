@@ -51,19 +51,15 @@ impl Error {
     }
 }
 
-enum LowererItem<N> {
-    Ir_(Spanned<ir::Item<N>>),
-    Unlowered,
-}
-
-pub struct Lowerer<N> {
-    items: Vec<LowererItem<N>>,
+#[derive(Clone)]
+pub struct Lowerer<N: Clone> {
+    pub items: Vec<Option<Spanned<ir::Item<N>>>>,
     scopes: Vec<HashMap<String, ir::Ref>>,
     scope_base: usize,
     var_counter: usize,
 }
 
-impl<N> Lowerer<N> {
+impl<N: Clone> Lowerer<N> {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
@@ -132,7 +128,7 @@ impl<N> Lowerer<N> {
         })
     }
 
-    pub fn lower_module(mut self, module: &ast::Module) -> Result<ir::Module<N>, Error> {
+    pub fn lower_module(&mut self, module: &ast::Module) -> Result<ir::Module, Error> {
         self.resolve_module_items(module)?;
 
         let stmts = module
@@ -145,17 +141,7 @@ impl<N> Lowerer<N> {
             })
             .try_collect::<Vec<_>>()?;
 
-        Ok(ir::Module {
-            items: self
-                .items
-                .into_iter()
-                .map(|li| match li {
-                    LowererItem::Ir_(itm) => itm,
-                    LowererItem::Unlowered => panic!("Should be no unlowered items left now"),
-                })
-                .collect::<Vec<_>>(),
-            stmts,
-        })
+        Ok(ir::Module { stmts })
     }
 
     fn lower_statements(
@@ -207,7 +193,7 @@ impl<N> Lowerer<N> {
     }
 
     fn lower_expr(&mut self, expr: &Spanned<ast::Expr>) -> Result<Spanned<ir::Expr>, Error> {
-        fn binary<N>(
+        fn binary<N: Clone>(
             lowerer: &mut Lowerer<N>,
             lhs: &Spanned<ast::Expr>,
             rhs: &Spanned<ast::Expr>,
@@ -410,7 +396,7 @@ impl<N> Lowerer<N> {
 
     fn new_item(&mut self, ident: Spanned<ast::Ident>) -> ir::ItemRef {
         let ref_ = ir::ItemRef(self.items.len());
-        self.items.push(LowererItem::Unlowered);
+        self.items.push(None);
         self.scopes
             .last_mut()
             .unwrap()
@@ -419,7 +405,7 @@ impl<N> Lowerer<N> {
     }
 
     fn replace_item(&mut self, ref_: ir::ItemRef, item: Spanned<ir::Item<N>>) {
-        self.items[ref_.0] = LowererItem::Ir_(item);
+        self.items[ref_.0] = Some(item);
     }
 
     fn new_varref(&mut self) -> ir::VarRef {

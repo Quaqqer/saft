@@ -74,7 +74,6 @@ macro_rules! exotic {
 pub struct Vm {
     call_stack: Vec<CallFrame>,
     stack: Vec<Value>,
-    constants: Vec<Constant>,
 }
 
 impl Vm {
@@ -83,20 +82,19 @@ impl Vm {
         Self {
             call_stack: Vec::new(),
             stack: Vec::new(),
-            constants: Vec::new(),
         }
-    }
-
-    pub fn add_constant(&mut self, mut constants: Vec<Constant>) {
-        self.constants.append(&mut constants);
     }
 }
 
 impl Vm {
-    pub fn interpret_chunk(&mut self, chunk: Rc<Chunk>) -> Result<(), Error> {
+    pub fn interpret_chunk(
+        &mut self,
+        chunk: Rc<Chunk>,
+        constants: &[Constant],
+    ) -> Result<(), Error> {
         self.call_stack.push(CallFrame::new(chunk, 0));
 
-        let res = self.run();
+        let res = self.run(constants);
         println!(
             "final stack: {:?}",
             self.stack.iter().map(|v| v.repr()).collect::<Vec<_>>()
@@ -104,12 +102,16 @@ impl Vm {
         res
     }
 
-    pub fn interpret_expr(&mut self, chunk: Rc<Chunk>) -> Result<Value, Error> {
-        self.interpret_chunk(chunk)?;
+    pub fn interpret_expr(
+        &mut self,
+        chunk: Rc<Chunk>,
+        constants: &[Constant],
+    ) -> Result<Value, Error> {
+        self.interpret_chunk(chunk, constants)?;
         Ok(self.pop())
     }
 
-    fn run(&mut self) -> Result<(), Error> {
+    fn run(&mut self, constants: &[Constant]) -> Result<(), Error> {
         while {
             let call_frame = self.call_stack.last().unwrap();
             call_frame.i < call_frame.chunk.end()
@@ -118,19 +120,13 @@ impl Vm {
             let op = call_frame.chunk.get_op(call_frame.i).unwrap().clone();
             let s = call_frame.chunk.get_span(call_frame.i).unwrap().clone();
 
-            self.eval_op(&op, &s)?;
+            self.eval_op(&op, &s, constants)?;
         }
 
         Ok(())
     }
 
-    fn eval_op(&mut self, op: &Op, s: &Span) -> Result<(), Error> {
-        // println!(
-        //     "{:?}",
-        //     self.stack.iter().map(|v| v.repr()).collect::<Vec<_>>()
-        // );
-        // println!("{:?}", op);
-
+    fn eval_op(&mut self, op: &Op, s: &Span, constants: &[Constant]) -> Result<(), Error> {
         match op {
             Op::Pop => {
                 self.pop();
@@ -264,7 +260,7 @@ impl Vm {
                     );
                 };
             }
-            Op::Constant(ref_) => match &self.constants[*ref_] {
+            Op::Constant(ref_) => match &constants[*ref_] {
                 Constant::SaftFunction(saft_function) => {
                     self.push(Value::Function(Function::SaftFunction(
                         saft_function.clone(),

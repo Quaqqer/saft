@@ -4,12 +4,7 @@ use codespan_reporting::diagnostic::{Diagnostic, Label};
 use saft_common::span::{Span, Spanned};
 use saft_ir as ir;
 
-use crate::{
-    chunk::Chunk,
-    constant::{Constant, NativeFunction},
-    op::Op,
-    value::SaftFunction,
-};
+use crate::{chunk::Chunk, constant::Constant, op::Op, value::SaftFunction};
 
 pub enum Error {
     Exotic {
@@ -56,6 +51,7 @@ macro_rules! exotic {
     };
 }
 
+#[derive(Clone)]
 struct Scope {
     stack_base: usize,
 }
@@ -66,11 +62,12 @@ impl Scope {
     }
 }
 
+#[derive(Clone)]
 pub struct Compiler {
     stack_i: usize,
     scopes: Vec<Scope>,
     ref_offsets: HashMap<ir::VarRef, usize>,
-    items: Vec<Constant>,
+    pub constants: Vec<Constant>,
 }
 
 impl Compiler {
@@ -80,36 +77,44 @@ impl Compiler {
             stack_i: 0,
             scopes: vec![Scope::new(0)],
             ref_offsets: HashMap::new(),
-            items: vec![],
+            constants: vec![],
         }
     }
 
-    pub fn compile_module(
+    fn compile_items<Builtin>(
         &mut self,
-        module: &ir::Module<NativeFunction>,
-    ) -> Result<(Chunk, Vec<Constant>), Error> {
+        items: &[Option<Spanned<ir::Item<Builtin>>>],
+    ) -> Result<(), Error> {
+        for item in items.iter().skip(self.constants.len()) {
+            let item = item.as_ref().expect("Should not be none");
+
+            let constant = match &item.v {
+                ir::Item::Function(fun) => {
+                    Constant::SaftFunction(self.compile_fn(item.s.spanned(fun))?)
+                }
+                ir::Item::Builtin(_) => todo!(),
+            };
+
+            self.constants.push(constant);
+        }
+
+        Ok(())
+    }
+
+    pub fn compile_module<Builtin>(
+        &mut self,
+        module: &ir::Module,
+        items: &[Option<Spanned<ir::Item<Builtin>>>],
+    ) -> Result<Chunk, Error> {
         let mut chunk = Chunk::new();
 
-        let mut items = module
-            .items
-            .iter()
-            .map(|item| {
-                Ok::<_, Error>(match &item.v {
-                    ir::Item::Function(function) => {
-                        Constant::SaftFunction(self.compile_fn(item.s.spanned(function))?)
-                    }
-                    ir::Item::Builtin(_) => todo!(),
-                })
-            })
-            .try_collect::<Vec<_>>()?;
-
-        self.items.append(&mut items);
+        self.compile_items(items)?;
 
         for stmt in &module.stmts {
             self.compile_stmt_(stmt, &mut chunk)?
         }
 
-        Ok((chunk, self.items.clone()))
+        Ok(chunk)
     }
 
     fn compile_fn(&mut self, function: Spanned<&ir::Function>) -> Result<SaftFunction, Error> {

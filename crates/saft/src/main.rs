@@ -16,7 +16,6 @@ use saft_bytecode::{chunk::Chunk, vm::Vm};
 
 use saft_ast as ast;
 use saft_bytecode as bytecode;
-use saft_ir as ir;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -25,6 +24,8 @@ struct Args {
 }
 
 pub struct Saft {
+    lowerer: saft_ast_to_ir::Lowerer<bytecode::constant::NativeFunction>,
+    compiler: bytecode::compiler::Compiler,
     vm: Vm,
     diagnostic_writer: StandardStream,
     diagnostic_config: codespan_reporting::term::Config,
@@ -34,6 +35,8 @@ pub struct Saft {
 impl Saft {
     pub fn new() -> Self {
         Self {
+            lowerer: saft_ast_to_ir::Lowerer::new(),
+            compiler: bytecode::compiler::Compiler::new(),
             vm: Vm::new(),
             diagnostic_writer: codespan_reporting::term::termcolor::StandardStream::stdout(
                 codespan_reporting::term::termcolor::ColorChoice::Auto,
@@ -61,17 +64,19 @@ impl Saft {
         }
     }
 
-    fn try_lower(
+    fn try_lower_and_compile(
         &mut self,
         fname: &str,
         s: &str,
         module: &ast::Module,
-    ) -> Option<ir::Module<bytecode::constant::NativeFunction>> {
+    ) -> Option<bytecode::chunk::Chunk> {
         let mut files = SimpleFiles::new();
         let id = files.add(fname, s);
 
-        match saft_ast_to_ir::Lowerer::new().lower_module(module) {
-            Ok(ir) => Some(ir),
+        let mut lowerer = self.lowerer.clone();
+
+        let ir = match lowerer.lower_module(module) {
+            Ok(ir) => ir,
             Err(err) => {
                 term::emit(
                     &mut self.diagnostic_writer,
@@ -80,22 +85,14 @@ impl Saft {
                     &err.diagnostic(id),
                 )
                 .unwrap();
-                None
+                return None;
             }
-        }
-    }
+        };
 
-    fn try_compile(
-        &mut self,
-        fname: &str,
-        s: &str,
-        module: &ir::Module<bytecode::constant::NativeFunction>,
-    ) -> Option<(bytecode::chunk::Chunk, Vec<bytecode::constant::Constant>)> {
-        let mut files = SimpleFiles::new();
-        let id = files.add(fname, s);
+        let mut compiler = self.compiler.clone();
 
-        match saft_bytecode::compiler::Compiler::new().compile_module(module) {
-            Ok((chunk, items)) => Some((chunk, items)),
+        let chunk = match compiler.compile_module(&ir, &lowerer.items) {
+            Ok(chunk) => chunk,
             Err(err) => {
                 term::emit(
                     &mut self.diagnostic_writer.lock(),
@@ -104,16 +101,23 @@ impl Saft {
                     &err.diagnostic(id),
                 )
                 .unwrap();
-                None
+                return None;
             }
-        }
+        };
+
+        self.lowerer = lowerer;
+        self.compiler = compiler;
+
+        Some(chunk)
     }
 
     pub fn try_interpret(&mut self, fname: &str, s: &str, chunk: Rc<Chunk>) -> Option<()> {
         let mut files = SimpleFiles::new();
         let id = files.add(fname, s);
 
-        match self.vm.interpret_chunk(chunk) {
+        let constants = &self.compiler.constants;
+
+        match self.vm.interpret_chunk(chunk, constants) {
             Ok(()) => Some(()),
             Err(err) => {
                 term::emit(
@@ -130,11 +134,8 @@ impl Saft {
 
     pub fn interpret_module(&mut self, fname: &str, s: &str) -> Option<()> {
         let ast = self.try_parse(fname, s)?;
-        let ir = self.try_lower(fname, s, &ast)?;
-        let (chunk, items) = self.try_compile(fname, s, &ir)?;
-
-        self.vm.add_constant(items);
-        self.try_interpret(fname, s, Rc::new(chunk))?;
+        let chunk = self.try_lower_and_compile(fname, s, &ast)?;
+        self.try_interpret(fname, s, Rc::new(chunk));
 
         Some(())
     }

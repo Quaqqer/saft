@@ -14,31 +14,30 @@ pub struct ItemRef(pub usize);
 pub struct VarRef(pub usize);
 
 #[derive(Debug)]
-pub struct Module<Builtin> {
-    pub items: Vec<Spanned<Item<Builtin>>>,
+pub struct Module {
     pub stmts: Vec<Spanned<Stmt>>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Item<Builtin> {
     Function(Function),
     Builtin(Builtin),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Function {
     pub params: Vec<Spanned<VarRef>>,
     pub body: Spanned<Block>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Stmt {
     Expr(Spanned<Expr>),
     Declare(Spanned<VarRef>, Spanned<Expr>),
     Return(Spanned<Expr>),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Expr {
     Nil,
     Bool(bool),
@@ -64,33 +63,33 @@ pub enum Expr {
     Index(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum LExpr {
     Index(Box<Spanned<Expr>>, Box<Spanned<Expr>>),
     Var(VarRef),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct If {
     pub cond: Box<Spanned<Expr>>,
     pub body: Box<Spanned<Block>>,
     pub else_: Box<Option<Spanned<Else>>>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Else {
     Block(Spanned<Block>),
     If(Spanned<If>),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum UnaryOp {
     Plus,
     Negate,
     Not,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum BinaryOp {
     Or,
 
@@ -114,10 +113,10 @@ pub enum BinaryOp {
     Pow,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct UntailBlock(pub Vec<Spanned<Stmt>>);
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Block {
     pub stmts: Vec<Spanned<Stmt>>,
     pub tail: Option<Spanned<Expr>>,
