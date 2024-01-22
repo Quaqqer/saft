@@ -2,8 +2,8 @@
 
 pub mod chunk;
 pub mod compiler;
-pub mod op;
-pub mod vm;
-pub mod num;
-pub mod value;
 pub mod item;
+pub mod num;
+pub mod op;
+pub mod value;
+pub mod vm;

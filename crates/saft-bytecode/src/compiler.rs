@@ -4,7 +4,12 @@ use codespan_reporting::diagnostic::{Diagnostic, Label};
 use saft_common::span::{Span, Spanned};
 use saft_ir as ir;
 
-use crate::{chunk::Chunk, item::{Item, NativeFunction}, op::Op, value::SaftFunction};
+use crate::{
+    chunk::Chunk,
+    item::{Item, NativeFunction},
+    op::Op,
+    value::SaftFunction,
+};
 
 pub enum Error {
     Exotic {
@@ -79,7 +84,10 @@ impl Compiler {
         }
     }
 
-    pub fn compile_module(&mut self, module: &ir::Module<NativeFunction>) -> Result<(Chunk, Vec<Item>), Error> {
+    pub fn compile_module(
+        &mut self,
+        module: &ir::Module<NativeFunction>,
+    ) -> Result<(Chunk, Vec<Item>), Error> {
         let mut chunk = Chunk::new();
 
         let mut items = module
