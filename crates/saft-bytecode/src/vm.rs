@@ -94,12 +94,7 @@ impl Vm {
     ) -> Result<(), Error> {
         self.call_stack.push(CallFrame::new(chunk, 0));
 
-        let res = self.run(constants);
-        println!(
-            "final stack: {:?}",
-            self.stack.iter().map(|v| v.repr()).collect::<Vec<_>>()
-        );
-        res
+        self.run(constants)
     }
 
     pub fn interpret_expr(
