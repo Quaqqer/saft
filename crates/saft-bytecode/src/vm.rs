@@ -8,7 +8,7 @@ use crate::{
     constant::Constant,
     num::Num,
     op::Op,
-    value::{Function, Value},
+    value::{Function, IndexRes, Value},
 };
 
 struct CallFrame {
@@ -94,7 +94,12 @@ impl Vm {
     ) -> Result<(), Error> {
         self.call_stack.push(CallFrame::new(chunk, 0));
 
-        self.run(constants)
+        let res = self.run(constants);
+
+        self.call_stack.pop().unwrap();
+        assert!(self.call_stack.is_empty());
+
+        res
     }
 
     pub fn interpret_expr(
@@ -221,8 +226,7 @@ impl Vm {
                 let index = self.pop();
                 let indexable = self.pop();
                 match indexable.index(&index) {
-                    Some(v) => self.push(v.clone()),
-                    None => exotic!(
+                    IndexRes::Unindexable => exotic!(
                         "Unindexable",
                         s,
                         format!(
@@ -231,9 +235,23 @@ impl Vm {
                             index.ty().name()
                         )
                     ),
+                    IndexRes::OutOfBounds => exotic!(
+                        "Out of bounds",
+                        s,
+                        format!(
+                            "Cannot index '{}' by '{}'",
+                            indexable.ty().name(),
+                            index.ty().name()
+                        )
+                    ),
+                    IndexRes::NonExistant => todo!(),
+                    IndexRes::Value(v) => self.push(v.clone()),
                 }
             }
-            Op::Vec(_) => todo!(),
+            Op::Vec(n) => {
+                let elems = self.popn(*n);
+                self.push(Value::Vec(elems));
+            }
             Op::Assign(i) => {
                 self.stack[*i] = self.stack.last().unwrap().clone();
             }

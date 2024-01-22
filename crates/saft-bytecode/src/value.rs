@@ -1,3 +1,4 @@
+use std::fmt::Write;
 use std::rc::Rc;
 
 use crate::{chunk::Chunk, num::Num};
@@ -7,6 +8,7 @@ pub enum Value {
     Nil,
     Num(Num),
     Function(Function),
+    Vec(Vec<Value>),
 }
 
 #[derive(Debug, Clone)]
@@ -133,6 +135,7 @@ impl Value {
             Value::Num(Num::Int(_)) => ValueType::Int,
             Value::Num(Num::Float(_)) => ValueType::Float,
             Value::Function(_) => ValueType::Function,
+            Value::Vec(_) => ValueType::Vec,
         }
     }
 
@@ -148,11 +151,37 @@ impl Value {
             Value::Nil => "nil".into(),
             Value::Num(num) => num.repr(),
             Value::Function(_) => "<function>".into(),
+            Value::Vec(vec) => {
+                let mut buf = String::new();
+                write!(buf, "[").unwrap();
+                for (i, v) in vec.iter().enumerate() {
+                    if i != 0 {
+                        write!(buf, ", ").unwrap();
+                    }
+                    write!(buf, "{}", v.repr()).unwrap();
+                }
+                write!(buf, "]").unwrap();
+                buf
+            }
         }
     }
 
-    pub fn index(&self, _index: &Value) -> Option<&Value> {
-        None
+    pub fn index<'a>(&'a self, index: &Value) -> IndexRes<'a> {
+        match self {
+            Value::Vec(vec) => match index {
+                Value::Num(Num::Int(i)) => {
+                    let Ok(i): Result<usize, _> = (*i).try_into() else {
+                        return IndexRes::OutOfBounds;
+                    };
+
+                    vec.get(i)
+                        .map(IndexRes::Value)
+                        .unwrap_or(IndexRes::OutOfBounds)
+                }
+                _ => IndexRes::Unindexable,
+            },
+            _ => IndexRes::Unindexable,
+        }
     }
 
     pub fn index_assign(&self, _index: &Value, _value: Value) -> bool {
@@ -244,6 +273,7 @@ pub enum ValueType {
     Int,
     Float,
     Function,
+    Vec,
 }
 
 impl ValueType {
@@ -254,6 +284,14 @@ impl ValueType {
             ValueType::Int => "int",
             ValueType::Float => "float",
             ValueType::Function => "function",
+            ValueType::Vec => "vec",
         }
     }
+}
+
+pub enum IndexRes<'a> {
+    Unindexable,
+    OutOfBounds,
+    NonExistant,
+    Value(&'a Value),
 }
