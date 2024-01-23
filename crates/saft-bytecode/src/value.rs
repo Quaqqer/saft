@@ -11,6 +11,7 @@ pub enum Value {
     Num(Num),
     Function(Function),
     Vec(Vec<Value>),
+    String(String),
 }
 
 #[derive(Debug, Clone)]
@@ -28,6 +29,7 @@ pub struct SaftFunction {
 #[derive(Debug, Clone)]
 pub struct NativeFunction {
     pub f: fn(&mut vm::Vm, Vec<Value>, Span) -> Result<Value, vm::Error>,
+    pub name: &'static str,
 }
 
 impl Value {
@@ -144,6 +146,7 @@ impl Value {
             Value::Num(Num::Float(_)) => ValueType::Float,
             Value::Function(_) => ValueType::Function,
             Value::Vec(_) => ValueType::Vec,
+            Value::String(_) => ValueType::String,
         }
     }
 
@@ -171,6 +174,7 @@ impl Value {
                 write!(buf, "]").unwrap();
                 buf
             }
+            Value::String(s) => format!("{:?}", s),
         }
     }
 
@@ -292,6 +296,7 @@ pub enum ValueType {
     Float,
     Function,
     Vec,
+    String,
 }
 
 impl ValueType {
@@ -302,7 +307,8 @@ impl ValueType {
             ValueType::Int => "int",
             ValueType::Float => "float",
             ValueType::Function => "function",
-            ValueType::Vec => "vec",
+            ValueType::Vec => "vector",
+            ValueType::String => "string",
         }
     }
 }

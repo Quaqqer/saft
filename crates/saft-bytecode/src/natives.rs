@@ -27,5 +27,8 @@ impl From<()> for NativeRes {
 
 #[native_function]
 pub fn print(v: Value) {
-    println!("{}", v.repr());
+    match v {
+        Value::String(s) => println!("{}", s),
+        _ => println!("{}", v.repr()),
+    }
 }

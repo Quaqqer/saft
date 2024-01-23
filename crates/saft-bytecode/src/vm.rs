@@ -146,7 +146,7 @@ impl Vm {
             Op::Bool(b) => self.push(Value::Num(Num::Bool(*b))),
             Op::Float(f) => self.push(Value::Num(Num::Float(*f))),
             Op::Integer(i) => self.push(Value::Num(Num::Int(*i))),
-            Op::String(_) => todo!(),
+            Op::String(s) => self.push(Value::String(s.clone())),
             Op::Var(stack_ptr) => {
                 let cpy =
                     self.stack[self.call_stack.last().unwrap().stack_base + stack_ptr].clone();

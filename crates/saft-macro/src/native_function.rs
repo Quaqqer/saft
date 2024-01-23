@@ -31,6 +31,7 @@ fn parse_param(arg: &syn::FnArg) -> Parameter {
 
 pub fn expand_native_function(fn_: syn::ItemFn) -> syn::Result<proc_macro2::TokenStream> {
     let name = fn_.sig.ident.clone();
+    let name_s = name.to_string();
 
     let visibility = fn_.vis.clone();
 
@@ -91,7 +92,7 @@ pub fn expand_native_function(fn_: syn::ItemFn) -> syn::Result<proc_macro2::Toke
                 NativeRes::from(#name(#(#arg_ident),*)).0
             }
 
-            NativeFunction { f: inner }
+            NativeFunction { f: inner, name: #name_s }
         };
     })
 }
