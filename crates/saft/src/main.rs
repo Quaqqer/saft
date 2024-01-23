@@ -34,8 +34,12 @@ pub struct Saft {
 #[allow(clippy::new_without_default)]
 impl Saft {
     pub fn new() -> Self {
+        let mut lowerer = saft_ast_to_ir::Lowerer::new();
+
+        lowerer.add_item("print".into(), saft_ir::Item::Builtin(bytecode::natives::print));
+
         Self {
-            lowerer: saft_ast_to_ir::Lowerer::new(),
+            lowerer,
             compiler: bytecode::compiler::Compiler::new(),
             vm: Vm::new(),
             diagnostic_writer: codespan_reporting::term::termcolor::StandardStream::stdout(

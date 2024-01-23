@@ -3,6 +3,7 @@
 pub mod chunk;
 pub mod compiler;
 pub mod constant;
+pub mod natives;
 pub mod num;
 pub mod op;
 pub mod value;

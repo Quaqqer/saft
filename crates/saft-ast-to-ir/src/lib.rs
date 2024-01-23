@@ -1,6 +1,6 @@
 #![feature(iterator_try_collect)]
 use codespan_reporting::diagnostic::{Diagnostic, Label};
-use saft_common::span::{Span, Spanned};
+use saft_common::span::{spanned, Span, Spanned};
 use std::collections::HashMap;
 
 use saft_ast as ast;
@@ -402,6 +402,11 @@ impl<N: Clone> Lowerer<N> {
             .unwrap()
             .insert(ident.v.clone(), ir::Ref::Item(ref_));
         ref_
+    }
+
+    pub fn add_item(&mut self, ident: ast::Ident, item: ir::Item<N>) {
+        let ref_ = self.new_item(spanned(ident, 0..0));
+        self.replace_item(ref_, spanned(item, 0..0));
     }
 
     fn replace_item(&mut self, ref_: ir::ItemRef, item: Spanned<ir::Item<N>>) {

@@ -32,6 +32,8 @@ fn parse_param(arg: &syn::FnArg) -> Parameter {
 pub fn expand_native_function(fn_: syn::ItemFn) -> syn::Result<proc_macro2::TokenStream> {
     let name = fn_.sig.ident.clone();
 
+    let visibility = fn_.vis.clone();
+
     let params = fn_.sig.inputs.iter().map(parse_param).collect::<Vec<_>>();
 
     let mut inner_args = Vec::<(syn::Ident, proc_macro2::TokenStream)>::new();
@@ -68,7 +70,7 @@ pub fn expand_native_function(fn_: syn::ItemFn) -> syn::Result<proc_macro2::Toke
 
     Ok(quote! {
         #[allow(non_upper_case_globals)]
-        const #name: NativeFunction = {
+        #visibility const #name: NativeFunction = {
             fn inner(vm: &mut vm::Vm, mut args: Vec<Value>, span: Span) -> Result<Value, vm::Error> {
                 #fn_
 

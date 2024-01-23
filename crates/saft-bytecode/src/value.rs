@@ -2,7 +2,6 @@ use std::fmt::Write;
 use std::rc::Rc;
 
 use saft_common::span::Span;
-use saft_macro::native_function;
 
 use crate::{chunk::Chunk, num::Num, vm};
 
@@ -28,32 +27,7 @@ pub struct SaftFunction {
 
 #[derive(Debug, Clone)]
 pub struct NativeFunction {
-    f: fn(&mut vm::Vm, Vec<Value>, Span) -> Result<Value, vm::Error>,
-}
-
-struct NativeRes(Result<Value, vm::Error>);
-
-impl From<Value> for NativeRes {
-    fn from(value: Value) -> Self {
-        NativeRes(Ok(value))
-    }
-}
-
-impl From<Result<Value, vm::Error>> for NativeRes {
-    fn from(value: Result<Value, vm::Error>) -> Self {
-        NativeRes(value)
-    }
-}
-
-impl From<()> for NativeRes {
-    fn from(_value: ()) -> Self {
-        NativeRes(Ok(Value::Nil))
-    }
-}
-
-#[native_function]
-fn test(_: i64) -> Value {
-    todo!()
+    pub f: fn(&mut vm::Vm, Vec<Value>, Span) -> Result<Value, vm::Error>,
 }
 
 impl Value {
@@ -256,6 +230,16 @@ impl From<Num> for Value {
 pub trait Cast<T> {
     fn name() -> String;
     fn cast(&self) -> Option<T>;
+}
+
+impl Cast<Value> for Value {
+    fn name() -> String {
+        "value".into()
+    }
+
+    fn cast(&self) -> Option<Value> {
+        Some(self.clone())
+    }
 }
 
 impl Cast<Num> for Value {

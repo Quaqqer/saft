@@ -222,6 +222,12 @@ impl Vm {
                         for arg in args {
                             self.push(arg);
                         }
+
+                        return Ok(());
+                    }
+                    Value::Function(Function::NativeFunction(fun)) => {
+                        let res = (fun.f)(self, args, s.clone())?;
+                        self.push(res);
                     }
                     _ => {
                         exotic!(
@@ -232,7 +238,6 @@ impl Vm {
                     }
                 }
 
-                return Ok(());
             }
             Op::Index => {
                 let index = self.pop();
@@ -286,12 +291,9 @@ impl Vm {
                 };
             }
             Op::Constant(ref_) => match &constants[*ref_] {
-                Constant::Function(Function::SaftFunction(saft_function)) => {
-                    self.push(Value::Function(Function::SaftFunction(
-                        saft_function.clone(),
-                    )));
+                Constant::Function(fun) => {
+                    self.push(Value::Function(fun.clone()));
                 }
-                Constant::Function(Function::NativeFunction(_)) => todo!(),
             },
         }
 

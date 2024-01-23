@@ -8,7 +8,7 @@ use crate::{
     chunk::Chunk,
     constant::Constant,
     op::Op,
-    value::{Function, SaftFunction},
+    value::{Function, NativeFunction, SaftFunction},
 };
 
 pub enum Error {
@@ -86,9 +86,9 @@ impl Compiler {
         }
     }
 
-    fn compile_items<Builtin>(
+    fn compile_items(
         &mut self,
-        items: &[Option<Spanned<ir::Item<Builtin>>>],
+        items: &[Option<Spanned<ir::Item<NativeFunction>>>],
     ) -> Result<(), Error> {
         for item in items.iter().skip(self.constants.len()) {
             let item = item.as_ref().expect("Should not be none");
@@ -97,7 +97,9 @@ impl Compiler {
                 ir::Item::Function(fun) => Constant::Function(Function::SaftFunction(
                     self.compile_fn(item.s.spanned(fun))?,
                 )),
-                ir::Item::Builtin(_) => todo!(),
+                ir::Item::Builtin(native) => {
+                    Constant::Function(Function::NativeFunction(native.clone()))
+                }
             };
 
             self.constants.push(constant);
@@ -106,10 +108,10 @@ impl Compiler {
         Ok(())
     }
 
-    pub fn compile_module<Builtin>(
+    pub fn compile_module(
         &mut self,
         module: &ir::Module,
-        items: &[Option<Spanned<ir::Item<Builtin>>>],
+        items: &[Option<Spanned<ir::Item<NativeFunction>>>],
     ) -> Result<Chunk, Error> {
         let mut chunk = Chunk::new();
 
