@@ -4,7 +4,12 @@ use codespan_reporting::diagnostic::{Diagnostic, Label};
 use saft_common::span::{Span, Spanned};
 use saft_ir as ir;
 
-use crate::{chunk::Chunk, constant::Constant, op::Op, value::SaftFunction};
+use crate::{
+    chunk::Chunk,
+    constant::Constant,
+    op::Op,
+    value::{Function, SaftFunction},
+};
 
 pub enum Error {
     Exotic {
@@ -89,9 +94,9 @@ impl Compiler {
             let item = item.as_ref().expect("Should not be none");
 
             let constant = match &item.v {
-                ir::Item::Function(fun) => {
-                    Constant::SaftFunction(self.compile_fn(item.s.spanned(fun))?)
-                }
+                ir::Item::Function(fun) => Constant::Function(Function::SaftFunction(
+                    self.compile_fn(item.s.spanned(fun))?,
+                )),
                 ir::Item::Builtin(_) => todo!(),
             };
 

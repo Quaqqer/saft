@@ -607,22 +607,12 @@ dependencies = [
  "codespan-reporting",
  "saft-common",
  "saft-ir",
+ "saft-macro",
 ]
 
 [[package]]
 name = "saft-common"
 version = "0.1.0"
-
-[[package]]
-name = "saft-eval"
-version = "0.1.0"
-dependencies = [
- "codespan-reporting",
- "quote",
- "saft-ast",
- "saft-common",
- "saft-macro",
-]
 
 [[package]]
 name = "saft-ir"

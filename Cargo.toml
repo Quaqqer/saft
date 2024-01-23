@@ -2,9 +2,11 @@
 resolver = "2"
 members = [
     "crates/saft",
-    "crates/saft-ast", "crates/saft-ast-to-ir", "crates/saft-bytecode",
+    "crates/saft-ast",
+    "crates/saft-ast-to-ir",
+    "crates/saft-bytecode",
     "crates/saft-common",
-    "crates/saft-eval", "crates/saft-ir",
+    "crates/saft-ir",
     "crates/saft-lexer",
     "crates/saft-macro",
     "crates/saft-parser",

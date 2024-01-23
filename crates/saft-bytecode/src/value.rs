@@ -1,7 +1,10 @@
 use std::fmt::Write;
 use std::rc::Rc;
 
-use crate::{chunk::Chunk, num::Num};
+use saft_common::span::Span;
+use saft_macro::native_function;
+
+use crate::{chunk::Chunk, num::Num, vm};
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -14,12 +17,43 @@ pub enum Value {
 #[derive(Debug, Clone)]
 pub enum Function {
     SaftFunction(SaftFunction),
+    NativeFunction(NativeFunction),
 }
 
 #[derive(Debug, Clone)]
 pub struct SaftFunction {
     pub arity: usize,
     pub chunk: Rc<Chunk>,
+}
+
+#[derive(Debug, Clone)]
+pub struct NativeFunction {
+    f: fn(&mut vm::Vm, Vec<Value>, Span) -> Result<Value, vm::Error>,
+}
+
+struct NativeRes(Result<Value, vm::Error>);
+
+impl From<Value> for NativeRes {
+    fn from(value: Value) -> Self {
+        NativeRes(Ok(value))
+    }
+}
+
+impl From<Result<Value, vm::Error>> for NativeRes {
+    fn from(value: Result<Value, vm::Error>) -> Self {
+        NativeRes(value)
+    }
+}
+
+impl From<()> for NativeRes {
+    fn from(_value: ()) -> Self {
+        NativeRes(Ok(Value::Nil))
+    }
+}
+
+#[native_function]
+fn test(_: i64) -> Value {
+    todo!()
 }
 
 impl Value {

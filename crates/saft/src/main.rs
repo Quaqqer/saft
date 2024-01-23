@@ -24,7 +24,7 @@ struct Args {
 }
 
 pub struct Saft {
-    lowerer: saft_ast_to_ir::Lowerer<bytecode::constant::NativeFunction>,
+    lowerer: saft_ast_to_ir::Lowerer<bytecode::value::NativeFunction>,
     compiler: bytecode::compiler::Compiler,
     vm: Vm,
     diagnostic_writer: StandardStream,

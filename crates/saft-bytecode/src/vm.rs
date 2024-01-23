@@ -205,6 +205,18 @@ impl Vm {
 
                 match fun {
                     Value::Function(Function::SaftFunction(fun)) => {
+                        if fun.arity != args.len() {
+                            exotic!(
+                                "Wrong parameters",
+                                s,
+                                format!(
+                                    "Function expected {} arguments but got {}",
+                                    fun.arity,
+                                    args.len()
+                                )
+                            );
+                        }
+
                         self.call_stack.last_mut().unwrap().i += 1;
                         self.enter_frame(fun.chunk.clone());
                         for arg in args {
@@ -274,11 +286,12 @@ impl Vm {
                 };
             }
             Op::Constant(ref_) => match &constants[*ref_] {
-                Constant::SaftFunction(saft_function) => {
+                Constant::Function(Function::SaftFunction(saft_function)) => {
                     self.push(Value::Function(Function::SaftFunction(
                         saft_function.clone(),
                     )));
                 }
+                Constant::Function(Function::NativeFunction(_)) => todo!(),
             },
         }
 
@@ -287,15 +300,15 @@ impl Vm {
         Ok(())
     }
 
-    fn push(&mut self, v: Value) {
+    pub(crate) fn push(&mut self, v: Value) {
         self.stack.push(v);
     }
 
-    fn pop(&mut self) -> Value {
+    pub(crate) fn pop(&mut self) -> Value {
         self.stack.pop().unwrap()
     }
 
-    fn popn(&mut self, n: usize) -> Vec<Value> {
+    pub(crate) fn popn(&mut self, n: usize) -> Vec<Value> {
         self.stack.split_off(self.stack.len() - n)
     }
 

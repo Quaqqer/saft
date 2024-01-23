@@ -1,11 +1,6 @@
-use crate::{value::SaftFunction, vm};
+use crate::value::Function;
 
 #[derive(Clone, Debug)]
 pub enum Constant {
-    SaftFunction(SaftFunction),
-}
-
-#[derive(Clone)]
-pub struct NativeFunction {
-    _f: fn(&mut vm::Vm) -> Result<(), vm::Error>,
+    Function(Function),
 }

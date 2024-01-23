@@ -4,7 +4,7 @@ use syn::{PatIdent, TypeReference};
 enum Parameter {
     Normal(syn::Type),
     Span { by_ref: bool },
-    Interpreter,
+    Vm,
 }
 
 fn parse_param(arg: &syn::FnArg) -> Parameter {
@@ -12,12 +12,12 @@ fn parse_param(arg: &syn::FnArg) -> Parameter {
         syn::FnArg::Typed(syn::PatType {
             box ty, box pat, ..
         }) => match pat {
-            syn::Pat::Ident(PatIdent { ident, .. }) if ident == "interpreter" => {
+            syn::Pat::Ident(PatIdent { ident, .. }) if ident == "vm" => {
                 match ty {
                     syn::Type::Reference(TypeReference { .. }) => {}
-                    _ => panic!("Must take interpreter by reference"),
+                    _ => panic!("Must take vm by reference"),
                 }
-                Parameter::Interpreter
+                Parameter::Vm
             }
             syn::Pat::Ident(PatIdent { ident, .. }) if ident == "span" => match ty {
                 syn::Type::Reference(TypeReference { .. }) => Parameter::Span { by_ref: true },
@@ -29,13 +29,10 @@ fn parse_param(arg: &syn::FnArg) -> Parameter {
     }
 }
 
-pub fn expand_native_function(mut fn_: syn::ItemFn) -> syn::Result<proc_macro2::TokenStream> {
+pub fn expand_native_function(fn_: syn::ItemFn) -> syn::Result<proc_macro2::TokenStream> {
     let name = fn_.sig.ident.clone();
-    let name_s = name.to_string();
-    let inner = format_ident!("inner");
-    fn_.sig.ident = inner.clone();
 
-    let params: Vec<_> = fn_.sig.inputs.iter().map(parse_param).collect();
+    let params = fn_.sig.inputs.iter().map(parse_param).collect::<Vec<_>>();
 
     let mut inner_args = Vec::<(syn::Ident, proc_macro2::TokenStream)>::new();
 
@@ -49,12 +46,12 @@ pub fn expand_native_function(mut fn_: syn::ItemFn) -> syn::Result<proc_macro2::
                 arg_i += 1;
                 ts
             }
-            Parameter::Interpreter => {
-                quote!(interpreter)
+            Parameter::Vm => {
+                quote!(vm)
             }
             Parameter::Span { by_ref } => {
                 if *by_ref {
-                    quote!(span)
+                    quote!(&span)
                 } else {
                     quote!(span.clone())
                 }
@@ -63,52 +60,55 @@ pub fn expand_native_function(mut fn_: syn::ItemFn) -> syn::Result<proc_macro2::
 
         inner_args.push((ident, expr));
     }
+
     let normal_params = arg_i;
 
-    let (arg_ident, arg_expr): (Vec<_>, Vec<_>) = inner_args.iter().cloned().unzip();
+    let (rev_arg_ident, rev_arg_expr): (Vec<_>, Vec<_>) = inner_args.iter().rev().cloned().unzip();
+    let arg_ident = rev_arg_ident.iter().rev().collect::<Vec<_>>();
 
     Ok(quote! {
-        #[allow(non_camel_case_types)]
-        #[derive(Debug)]
-        struct #name {}
+        #[allow(non_upper_case_globals)]
+        const #name: NativeFunction = {
+            fn inner(vm: &mut vm::Vm, mut args: Vec<Value>, span: Span) -> Result<Value, vm::Error> {
+                #fn_
 
-        impl NativeFunc for #name {
-            fn data() -> NativeFuncData {
-                fn #name(interpreter: &mut Interpreter, span: &Span, args: Vec<Spanned<Value>>) -> Result<Value, ControlFlow> {
-                    #fn_
-
-                    if args.len() != #normal_params {
-                        return Err(Exception::ArgMismatch {
-                            span: span.clone(),
-                            expected: #normal_params,
-                            got: args.len(),
-                        }.into())
-                    }
-
-                    #(let #arg_ident = #arg_expr;)*
-
-                    let res: NativeRes = #inner(#(#arg_ident),*).into();
-                    res.0
+                if args.len() != #normal_params {
+                    return Err(vm::Error::Exotic {
+                        message: "Wrong parameters".into(),
+                        span,
+                        note: Some(format!(
+                            "Function expected {} arguments but got {}",
+                            #normal_params,
+                            args.len()
+                        )),
+                    });
                 }
 
-                NativeFuncData {
-                    name: #name_s,
-                    f: #name,
-                }
+                #(let #rev_arg_ident = #rev_arg_expr;)*
+
+                NativeRes::from(#name(#(#arg_ident),*)).0
             }
-        }
+
+            NativeFunction { f: inner }
+        };
     })
 }
 
 fn parse_normal(i: usize, ty: &syn::Type) -> proc_macro2::TokenStream {
     quote! {
         {
-            let arg = &args[#i];
-            Cast::<#ty>::cast(arg.v.clone()).ok_or::<ControlFlow>(
-                cast_error!(arg.clone(),
-                    <#ty as CastFrom::<Value>>::ty_name()
-                )
-            )?
+            let arg = args.pop().unwrap();
+            let casted: #ty = arg.cast().ok_or_else(|| vm::Error::Exotic {
+                message: "Cast error".into(),
+                span: span.clone(),
+                note: Some(format!(
+                    "Could not cast argument {} of type {} to {}",
+                    #i,
+                    arg.ty().name(),
+                    <Value as Cast<#ty>>::name(),
+                )),
+            })?;
+            casted
         }
     }
 }
