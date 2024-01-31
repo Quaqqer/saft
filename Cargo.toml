@@ -10,6 +10,6 @@ members = [
     "crates/saft-lexer",
     "crates/saft-macro",
     "crates/saft-parser",
-    "crates/saft-tests",
+    "crates/saft-tests", "crates/saft-wasm",
 ]
 default-members = ["crates/saft"]
