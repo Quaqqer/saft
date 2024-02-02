@@ -6,7 +6,8 @@ use saft_ir as ir;
 
 use crate::{
     chunk::Chunk,
-    constant::Constant,
+    compiled_item::CompiledItem,
+    constant::{Constant, ConstantRef},
     op::Op,
     value::{Function, NativeFunction, SaftFunction},
 };
@@ -72,6 +73,7 @@ pub struct Compiler {
     stack_i: usize,
     scopes: Vec<Scope>,
     ref_offsets: HashMap<ir::VarRef, usize>,
+    compiled_items: Vec<CompiledItem>,
     pub constants: Vec<Constant>,
 }
 
@@ -82,30 +84,51 @@ impl Compiler {
             stack_i: 0,
             scopes: vec![Scope::new(0)],
             ref_offsets: HashMap::new(),
+            compiled_items: Vec::new(),
             constants: vec![],
         }
     }
 
     fn compile_items(
         &mut self,
-        items: &[Option<Spanned<ir::Item<NativeFunction>>>],
-    ) -> Result<(), Error> {
-        for item in items.iter().skip(self.constants.len()) {
-            let item = item.as_ref().expect("Should not be none");
+        items: &[&Spanned<ir::Item<NativeFunction>>],
+    ) -> Result<Option<ConstantRef>, Error> {
+        let mut new_compiled_items = items
+            .iter()
+            .skip(self.constants.len())
+            .map(|item| self.compile_item(item))
+            .try_collect::<Vec<_>>()?;
+        self.compiled_items.append(&mut new_compiled_items);
 
-            let constant = match &item.v {
-                ir::Item::Function(fun) => Constant::Function(Function::SaftFunction(
+        Ok(None)
+    }
+
+    fn compile_item(
+        &mut self,
+        item: &Spanned<ir::Item<NativeFunction>>,
+    ) -> Result<CompiledItem, Error> {
+        let compiled_item = match &item.v {
+            ir::Item::Function(fun) => {
+                let constant = Constant::Function(Function::SaftFunction(
                     self.compile_fn(item.s.spanned(fun))?,
-                )),
-                ir::Item::Builtin(native) => {
-                    Constant::Function(Function::NativeFunction(native.clone()))
-                }
-            };
+                ));
+                let ref_ = self.add_constant(constant);
+                CompiledItem::Function(ref_)
+            }
+            ir::Item::Builtin(builtin) => {
+                let constant = Constant::Function(Function::NativeFunction(builtin.clone()));
+                let ref_ = self.add_constant(constant);
+                CompiledItem::Function(ref_)
+            }
+        };
 
-            self.constants.push(constant);
-        }
+        Ok(compiled_item)
+    }
 
-        Ok(())
+    fn add_constant(&mut self, constant: Constant) -> ConstantRef {
+        let i = self.constants.len();
+        self.constants.push(constant);
+        ConstantRef(i)
     }
 
     pub fn compile_module(
@@ -115,7 +138,12 @@ impl Compiler {
     ) -> Result<Chunk, Error> {
         let mut chunk = Chunk::new();
 
-        self.compile_items(items)?;
+        self.compile_items(
+            &items
+                .iter()
+                .map(|opt| opt.as_ref().unwrap())
+                .collect::<Vec<_>>(),
+        )?;
 
         for stmt in &module.stmts {
             self.compile_stmt_(stmt, &mut chunk)?
