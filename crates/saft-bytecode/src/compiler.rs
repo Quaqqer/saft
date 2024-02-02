@@ -229,6 +229,20 @@ impl Compiler {
         Ok(())
     }
 
+    fn compile_untail_block(
+        &mut self,
+        block: &Spanned<ir::UntailBlock>,
+        chunk: &mut Chunk,
+    ) -> Result<(), Error> {
+        self.compile_block(
+            &block.s.spanned(ir::Block {
+                stmts: block.v.0.clone(),
+                tail: None,
+            }),
+            chunk,
+        )
+    }
+
     pub fn compile_expr(&mut self, expr: &Spanned<ir::Expr>) -> Result<Chunk, Error> {
         let mut chunk = Chunk::new();
         self.compile_expr_(expr, &mut chunk)?;

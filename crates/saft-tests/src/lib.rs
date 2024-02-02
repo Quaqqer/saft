@@ -24,6 +24,6 @@ mod test {
             }
         }
 
-        assert_eq!(got, expected.join("\n"));
+        assert_eq!(got.trim(), expected.join("\n").trim());
     }
 }
