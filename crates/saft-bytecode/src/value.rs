@@ -289,6 +289,19 @@ impl Cast<f64> for Value {
     }
 }
 
+impl Cast<String> for Value {
+    fn name() -> String {
+        "string".into()
+    }
+
+    fn cast(&self) -> Option<String> {
+        match self {
+            Value::String(s) => Some(s.clone()),
+            _ => None,
+        }
+    }
+}
+
 pub enum ValueType {
     Nil,
     Bool,

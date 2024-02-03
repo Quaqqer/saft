@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use bytecode::natives;
 use codespan_reporting::{
     files::SimpleFiles,
     term::{self, termcolor::StandardStream},
@@ -22,10 +23,11 @@ impl Saft {
     pub fn new() -> Self {
         let mut lowerer = saft_ast_to_ir::Lowerer::new();
 
-        lowerer.add_item(
-            "print".into(),
-            saft_ir::Item::Builtin(bytecode::natives::print),
-        );
+        let mut add_native = |native: bytecode::value::NativeFunction| {
+            lowerer.add_item(native.name.to_string(), saft_ir::Item::Builtin(native));
+        };
+
+        add_native(natives::print);
 
         Self {
             lowerer,
