@@ -1,7 +1,10 @@
-use codespan_reporting::diagnostic::{Diagnostic, Label};
-use saft_syntax::{ast, span::{spanned, Span, Spanned}};
-use std::collections::HashMap;
 use crate::ir;
+use codespan_reporting::diagnostic::{Diagnostic, Label};
+use saft_syntax::{
+    ast,
+    span::{spanned, Span, Spanned},
+};
+use std::collections::HashMap;
 
 macro_rules! exotic {
     ($msg:expr, $span:expr) => {
@@ -223,19 +226,18 @@ impl<N: Clone> Lowerer<N> {
             ast::Expr::If(cond, body, else_) => ir::Expr::If(s.spanned(ir::If {
                 cond: Box::new(self.lower_expr(cond)?),
                 body: Box::new(self.lower_block(body)?),
-                else_: Box::new(
-                    match else_.as_ref().map(|else_| {
+                else_: Box::new(if let Some(else_) = else_ {
+                    {
                         let else_ = self.lower_expr(else_)?;
-                        Ok(else_.s.spanned(match else_.v {
+                        Some(else_.s.spanned(match else_.v {
                             ir::Expr::Block(block) => ir::Else::Block(*block),
                             ir::Expr::If(if_) => ir::Else::If(if_),
-                            _ => panic!("Ast else should only contain block or if"),
+                            _ => unreachable!(),
                         }))
-                    }) {
-                        Some(v) => Some(v?),
-                        None => None,
-                    },
-                ),
+                    }
+                } else {
+                    None
+                }),
             })),
             ast::Expr::Loop(stmts) => self.scoped(|l| {
                 l.resolve_statements_items(stmts)?;
