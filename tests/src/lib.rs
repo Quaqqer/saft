@@ -4,7 +4,7 @@ mod test {
     use pretty_assertions::assert_eq;
     use saft_macro::discover_tests;
 
-    #[discover_tests(root = "./crates/saft-tests/res/tests", glob = "**/[!_]*.saf")]
+    #[discover_tests(root = "./tests/res/tests", glob = "**/[!_]*.saf")]
     fn test(file_name: &str) {
         let mut cmd = Command::cargo_bin("saft").unwrap();
         cmd.arg(file_name);
