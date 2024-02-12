@@ -1,5 +1,6 @@
-use saft_common::span::Span;
 use std::str::CharIndices;
+
+use crate::span::Span;
 
 #[derive(Clone, Debug)]
 pub struct Cursor<'a> {

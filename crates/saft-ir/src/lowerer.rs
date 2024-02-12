@@ -1,10 +1,7 @@
-#![feature(iterator_try_collect)]
 use codespan_reporting::diagnostic::{Diagnostic, Label};
-use saft_common::span::{spanned, Span, Spanned};
+use saft_syntax::{ast, span::{spanned, Span, Spanned}};
 use std::collections::HashMap;
-
-use saft_ast as ast;
-use saft_ir as ir;
+use crate::ir;
 
 macro_rules! exotic {
     ($msg:expr, $span:expr) => {

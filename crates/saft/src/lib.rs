@@ -7,11 +7,13 @@ use codespan_reporting::{
 };
 use saft_bytecode::{chunk::Chunk, vm::Vm};
 
-use saft_ast as ast;
+use saft_syntax::{ast, parser::Parser};
+use saft_ir::ir;
+use saft_ir::lowerer::Lowerer;
 use saft_bytecode as bytecode;
 
 pub struct Saft {
-    lowerer: saft_ast_to_ir::Lowerer<bytecode::value::NativeFunction>,
+    lowerer: Lowerer<bytecode::value::NativeFunction>,
     compiler: bytecode::compiler::Compiler,
     vm: Vm,
     diagnostic_writer: StandardStream,
@@ -21,10 +23,10 @@ pub struct Saft {
 #[allow(clippy::new_without_default)]
 impl Saft {
     pub fn new() -> Self {
-        let mut lowerer = saft_ast_to_ir::Lowerer::new();
+        let mut lowerer = Lowerer::new();
 
         let mut add_native = |native: bytecode::value::NativeFunction| {
-            lowerer.add_item(native.name.to_string(), saft_ir::Item::Builtin(native));
+            lowerer.add_item(native.name.to_string(), ir::Item::Builtin(native));
         };
 
         add_native(natives::print);
@@ -44,7 +46,7 @@ impl Saft {
         let mut files = SimpleFiles::new();
         let id = files.add(fname, s);
 
-        match saft_parser::Parser::new(s).parse_file() {
+        match Parser::new(s).parse_file() {
             Ok(module) => Some(module),
             Err(err) => {
                 term::emit(

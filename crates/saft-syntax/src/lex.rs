@@ -1,7 +1,6 @@
 use crate::cursor::Cursor;
 
-use saft_common::span::Spanned;
-
+use crate::span::Spanned;
 use crate::token::Token;
 
 pub struct Lexer<'a> {
@@ -189,9 +188,7 @@ impl<'a> Lexer<'a> {
 mod test {
     use std::ops::Range;
 
-    use saft_common::span::{span, Spanned};
-
-    use crate::{lex::Lexer, token::Token as T};
+    use crate::{lex::Lexer, span::{span, Spanned}, token::Token as T};
 
     fn expect_spanned_tokens(src: &'static str, spanned_tokens: Vec<Spanned<T>>) {
         assert_eq!(Lexer::new(src).all_tokens(), spanned_tokens);

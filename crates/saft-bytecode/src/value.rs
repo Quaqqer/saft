@@ -1,7 +1,7 @@
 use std::fmt::Write;
 use std::rc::Rc;
 
-use saft_common::span::Span;
+use saft_syntax::span::Span;
 
 use crate::{chunk::Chunk, num::Num, vm};
 

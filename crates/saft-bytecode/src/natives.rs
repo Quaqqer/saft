@@ -2,7 +2,7 @@ use crate::value::Cast;
 use crate::value::NativeFunction;
 use crate::value::Value;
 use crate::vm;
-use saft_common::span::Span;
+use saft_syntax::span::Span;
 use saft_macro::native_function;
 
 pub struct NativeRes(pub Result<Value, vm::Error>);

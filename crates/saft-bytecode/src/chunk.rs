@@ -1,6 +1,6 @@
 use std::borrow::Borrow;
 
-use saft_common::span::Span;
+use saft_syntax::span::Span;
 
 use crate::op::Op;
 

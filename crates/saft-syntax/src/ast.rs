@@ -1,4 +1,4 @@
-use saft_common::span::Spanned;
+use crate::span::Spanned;
 
 pub type Ident = String;
 

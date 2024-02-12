@@ -1,8 +1,8 @@
 use std::{borrow::Borrow, collections::HashMap, rc::Rc};
 
 use codespan_reporting::diagnostic::{Diagnostic, Label};
-use saft_common::span::{Span, Spanned};
-use saft_ir as ir;
+use saft_ir::ir;
+use saft_syntax::span::{Span, Spanned};
 
 use crate::{
     chunk::Chunk,

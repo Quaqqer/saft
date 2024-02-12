@@ -1,12 +1,12 @@
-#![feature(let_chains, if_let_guard)]
 
 use std::{borrow::Borrow, collections::VecDeque};
 
-use ast::{Block, Expr, Item, Module, Statement};
+use crate::ast;
+use crate::ast::{Block, Expr, Item, Module, Statement};
+use crate::lex::Lexer;
+use crate::span::{Span, Spanned};
+use crate::token::Token;
 use codespan_reporting::diagnostic::{Diagnostic, Label};
-use saft_ast as ast;
-use saft_common::span::{Span, Spanned};
-use saft_lexer::{lex::Lexer, token::Token};
 
 macro_rules! unexpected {
     ($got:expr, $expected:expr) => {
@@ -515,11 +515,11 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod test {
-    use saft_ast::Expr;
-    use saft_common::span::{spanned, Spanned};
-    use saft_lexer::token::Token;
+    use crate::ast::Expr;
+    use crate::span::{spanned, Spanned};
 
-    use crate::Parser;
+    use crate::parser::Parser;
+    use crate::token::Token;
 
     fn test_expr(s: &str, expected: &Spanned<Expr>) {
         let res = Parser::new(s).parse_expr().unwrap();

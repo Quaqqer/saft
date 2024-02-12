@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use codespan_reporting::diagnostic::{Diagnostic, Label};
-use saft_common::span::Span;
+use saft_syntax::span::Span;
 
 use crate::{
     chunk::Chunk,
