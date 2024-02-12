@@ -7,10 +7,10 @@ use codespan_reporting::{
 };
 use saft_bytecode::{chunk::Chunk, vm::Vm};
 
-use saft_syntax::{ast, parser::Parser};
+use saft_bytecode as bytecode;
 use saft_ir::ir;
 use saft_ir::lowerer::Lowerer;
-use saft_bytecode as bytecode;
+use saft_syntax::{ast, parser::Parser};
 
 pub struct Saft {
     lowerer: Lowerer<bytecode::value::NativeFunction>,

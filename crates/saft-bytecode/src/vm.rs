@@ -237,7 +237,6 @@ impl Vm {
                         )
                     }
                 }
-
             }
             Op::Index => {
                 let index = self.pop();

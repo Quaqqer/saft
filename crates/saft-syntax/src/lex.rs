@@ -188,7 +188,11 @@ impl<'a> Lexer<'a> {
 mod test {
     use std::ops::Range;
 
-    use crate::{lex::Lexer, span::{span, Spanned}, token::Token as T};
+    use crate::{
+        lex::Lexer,
+        span::{span, Spanned},
+        token::Token as T,
+    };
 
     fn expect_spanned_tokens(src: &'static str, spanned_tokens: Vec<Spanned<T>>) {
         assert_eq!(Lexer::new(src).all_tokens(), spanned_tokens);

@@ -2,8 +2,8 @@ use crate::value::Cast;
 use crate::value::NativeFunction;
 use crate::value::Value;
 use crate::vm;
-use saft_syntax::span::Span;
 use saft_macro::native_function;
+use saft_syntax::span::Span;
 
 pub struct NativeRes(pub Result<Value, vm::Error>);
 
