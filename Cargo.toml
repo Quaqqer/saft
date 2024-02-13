@@ -6,7 +6,6 @@ members = [
     "crates/saft-ir",
     "crates/saft-macro",
     "crates/saft-syntax",
-    "crates/saft-wasm",
     "tests",
 ]
 default-members = ["crates/saft"]
